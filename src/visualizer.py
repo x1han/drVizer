@@ -16,7 +16,8 @@ def _compute_track_layout(num_transcripts, separated_parsers_data=None, grouped_
                           transcript_width=12, transcript_height=0.5,
                           transcript_row_unit=0.5, distribution_row_unit=0.35,
                           score_track_unit=1.6, coverage_track_unit=1.8,
-                          min_track_height=1.2):
+                          min_track_height=1.2, track_gap=0.12,
+                          title_gap=0.22, bottom_margin=0.45):
     track_heights = [max(min_track_height, num_transcripts * transcript_row_unit + 0.8)]
 
     if separated_parsers_data is not None:
@@ -38,7 +39,18 @@ def _compute_track_layout(num_transcripts, separated_parsers_data=None, grouped_
     elif bed_data is not None and len(bed_data) > 0:
         track_heights.extend([max(min_track_height, score_track_unit)] * len(bed_data))
 
-    return transcript_width, sum(track_heights), track_heights
+    axes_height = sum(track_heights)
+    total_height = axes_height + title_gap + bottom_margin + track_gap * max(0, len(track_heights) - 1)
+
+    return {
+        'figure_width': transcript_width,
+        'figure_height': total_height,
+        'track_heights': track_heights,
+        'track_gap': track_gap,
+        'title_gap': title_gap,
+        'bottom_margin': bottom_margin,
+        'axes_height': axes_height
+    }
 
 
 def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse_order=False,
@@ -145,7 +157,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     # Total number of tracks (GTF + other parsers)
     total_tracks = 1 + num_other_parsers  # 1 for GTF, plus others
 
-    figure_width, total_height, track_heights = _compute_track_layout(
+    layout = _compute_track_layout(
         num_transcripts,
         separated_parsers_data=separated_parsers_data,
         grouped_bed_data=grouped_bed_data,
@@ -153,6 +165,9 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         transcript_width=transcript_width,
         transcript_height=transcript_height
     )
+    figure_width = layout['figure_width']
+    total_height = layout['figure_height']
+    track_heights = layout['track_heights']
 
     # Create figure with subplots - one for each track
     if total_tracks > 1:
@@ -703,6 +718,22 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         title = f'Transcript Structure for {identifier_label} ({strand} strand)'
     
     fig.suptitle(title, fontsize=14)
+
+    figure_height = layout['figure_height']
+    title_gap = layout['title_gap']
+    bottom_margin = layout['bottom_margin']
+    track_gap = layout['track_gap']
+    axes_height = layout['axes_height']
+
+    if len(axes) > 1:
+        hspace = track_gap * len(axes) / axes_height if axes_height > 0 else 0
+    else:
+        hspace = 0
+
+    top_fraction = 1 - title_gap / figure_height
+    bottom_fraction = bottom_margin / figure_height
+
+    fig.subplots_adjust(top=top_fraction, bottom=bottom_fraction, hspace=hspace)
     
     # 1. Uniform processing of X-axis visibility control for all tracks
     for i, ax in enumerate(axes):
@@ -722,14 +753,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         ax.set_xlabel('')
 
     # 3. Adjust layout and spacing
-    # tight_layout must be called before subplots_adjust, otherwise it will be overridden
-    plt.tight_layout() 
-    
-    # hspace=0.05 means track spacing is 5% of average height, can be adjusted to 0.02 or even 0 as needed
-    fig.subplots_adjust(hspace=0.1) 
-    
-    # If there is a title, top space may need to be reserved
-    # fig.subplots_adjust(top=0.92) 
+    # Use fixed physical gaps converted to subplot fractions so spacing stays visually stable.
 
     # Debug: Check actual xlim after all adjustments
     
