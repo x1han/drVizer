@@ -730,10 +730,13 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     else:
         hspace = 0
 
-    top_fraction = 1 - title_gap / figure_height
+    title_height = 0.28
+    top_fraction = 1 - (title_gap + title_height) / figure_height
     bottom_fraction = bottom_margin / figure_height
+    title_y = 1 - title_height / (2 * figure_height)
 
     fig.subplots_adjust(top=top_fraction, bottom=bottom_fraction, hspace=hspace)
+    fig._suptitle.set_y(title_y)
     
     # 1. Uniform processing of X-axis visibility control for all tracks
     for i, ax in enumerate(axes):
