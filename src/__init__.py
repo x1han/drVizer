@@ -2,7 +2,7 @@
 Genomic Visualization Tools
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 # Core classes
 from .bed_parser import BEDParser, parse_bed_for_region, parse_bed_all

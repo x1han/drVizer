@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -15,8 +15,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/drvizer",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=["drvizer"],
+    package_dir={"drvizer": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
@@ -35,7 +35,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "drvizer=drvizer:main",
+            "drvizer=drvizer.cli:main",
         ],
     },
     keywords="bioinformatics, genomics, transcriptomics, gtf, bed, visualization",

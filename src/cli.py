@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Compatibility wrapper for running the CLI from a repository checkout."""
+"""
+drVizer - Gene Transcript Visualization Tool
+============================================
+
+Command-line interface for parsing GTF/BED files and visualizing gene transcript structures.
+"""
 
 import argparse
 import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from gtf_parser import GTFParser
-from bed_parser import BEDParser
-from visualizer import visualize_gene_transcripts, save_visualization, merge_parsers
-from utils import convert_to_json, convert_to_csv, get_transcript_stats, filter_transcripts
+from .gtf_parser import GTFParser
+from .bed_parser import BEDParser
+from .visualizer import visualize_gene_transcripts, save_visualization, merge_parsers
+from .utils import convert_to_json, convert_to_csv, get_transcript_stats, filter_transcripts
 
 
 def main():
@@ -21,13 +23,13 @@ def main():
         epilog="""
 Examples:
   Parse and visualize a specific gene from GTF file:
-    python drvizer.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
+    drvizer --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
 
   Parse BED file for a genomic region:
-    python drvizer.py --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
+    drvizer --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
 
   Merge GTF and BED data for comprehensive visualization:
-    python drvizer.py --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
+    drvizer --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
         """
     )
 
@@ -129,7 +131,3 @@ Examples:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

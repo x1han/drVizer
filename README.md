@@ -22,10 +22,18 @@ This Python module provides functionality for parsing GTF files and visualizing 
 ## Installation
 --------------
 
-1. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Install the package:
+
+```bash
+pip install .
+```
+
+For development:
+
+```bash
+pip install -e .
+pip install -r requirements.txt
+```
 
 ## Usage
 -----
@@ -33,17 +41,23 @@ This Python module provides functionality for parsing GTF files and visualizing 
 ### Command Line Interface
 ---------------------
 
-The main entry point is `drvizer.py` in the root directory:
+Installed CLI usage:
 
 ```bash
 # Parse and visualize a specific gene from GTF file
-python drvizer.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
+drvizer --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
 
 # Parse BED file for a genomic region
-python drvizer.py --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
+drvizer --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
 
 # Merge GTF and BED data for comprehensive visualization
-python drvizer.py --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
+drvizer --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
+```
+
+Repository checkout usage:
+
+```bash
+python drvizer.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
 ```
 
 ### Python API
@@ -51,125 +65,94 @@ python drvizer.py --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_
 
 #### Basic Usage
 ```python
-from src.gtf_parser import parse_gtf_for_gene
-from src.visualizer import visualize_gene_transcripts, save_visualization
+from drvizer import parse_gtf_for_gene
+from drvizer import visualize_gene_transcripts, save_visualization
 
-# Parse GTF file for a specific gene
 transcript_data = parse_gtf_for_gene("path/to/file.gtf", "ENSG00000136997")
-
-# Visualize transcripts with improved formatting
 fig = visualize_gene_transcripts(transcript_data)
-
-# Save visualization
 save_visualization(fig, "output.png")
 ```
 
 #### Parse Multiple GTF Files
 ```python
-from src.gtf_parser import parse_gtf_for_gene, parse_gtf_all_genes
+from drvizer import parse_gtf_for_gene, parse_gtf_all_genes
 
-# Parse multiple GTF files for a specific gene
 gtf_files = ["path/to/file1.gtf", "path/to/file2.gtf", "path/to/file3.gtf"]
 transcript_data = parse_gtf_for_gene(gtf_files, "ENSG00000136997")
-
-# Parse all genes from multiple GTF files
 all_genes_data = parse_gtf_all_genes(gtf_files)
 ```
 
 #### Efficient Multiple Genes Usage
 ```python
-from src.gtf_parser import GTFParser
-from src.visualizer import visualize_gene_transcripts, save_visualization
+from drvizer import GTFParser, visualize_gene_transcripts, save_visualization
 
-# Initialize parser with single or multiple GTF files
 parser = GTFParser(["path/to/file1.gtf", "path/to/file2.gtf"])
+parser.parse_gtf()
 
-# Parse all genes at once (efficient)
-parser.parse_gtf()  # This will parse all genes and cache the data
-
-# Now we can access any gene efficiently using the unified method
-gene_ids = ["ENSG00000136997", "ENSG00000236998", "ENSG00000188015.10"]
-for gene_id in gene_ids:
-    # This is now fast because the data is cached
+for gene_id in ["ENSG00000136997", "ENSG00000236998", "ENSG00000188015.10"]:
     transcript_data = parser.get_transcript_data(gene_id)
-    
-    # Visualize transcripts
     fig = visualize_gene_transcripts(transcript_data)
-    
-    # Save visualization
     save_visualization(fig, f"{gene_id}_transcripts.png")
 ```
 
 #### Access Genes by Name or ID
 ```python
-from src.gtf_parser import GTFParser
+from drvizer import GTFParser
 
-# Initialize parser
 parser = GTFParser("path/to/file.gtf")
-
-# Parse all genes to build the name mapping
 parser.parse_gtf()
 
-# Access gene by ID
 transcript_data_by_id = parser.get_transcript_data("ENSG00000136997")
-
-# Access gene by name
 transcript_data_by_name = parser.get_transcript_data("TP53")
 ```
 
 #### Parse BED Files for Transposable Elements
 ```python
-from src.bed_parser import BEDParser
+from drvizer import BEDParser
 
-# Initialize BED parser
 bed_parser = BEDParser("path/to/file.bed")
-
-# Parse all TEs
 bed_data = bed_parser.parse_bed()
-
-# Get TEs in a specific genomic region
-te_in_region = bed_parser.get_te_in_region("chr1", 1000000, 2000000)
+anno_in_region = bed_parser.get_anno_in_region("chr1", 1000000, 2000000)
 ```
 
 #### Merge GTF and BED Data for Comprehensive Visualization
 ```python
-from src.gtf_parser import GTFParser
-from src.visualizer import merge_parsers
-from src.bed_parser import BEDParser
-from src.visualizer import visualize_gene_transcripts
+from drvizer import GTFParser, BEDParser, merge_parsers, visualize_gene_transcripts
 
-# Initialize parsers
 gtf_parser = GTFParser("path/to/file.gtf")
 bed_parser = BEDParser("path/to/file.bed")
 
-# Parse the files
 gtf_parser.parse_gtf()
 bed_parser.parse_bed()
 
-# Merge parsers
 merged_parser = merge_parsers(gtf_parser, bed_parser)
-
-# Visualize gene transcripts with overlapping TEs
 gene_data = merged_parser.get_transcript_data("ENSG00000136997")
 fig = visualize_gene_transcripts(gene_data)
 ```
 
+#### High-level API
+```python
+from drvizer import DrViz
+
+parser = (
+    DrViz()
+    .load_gtf("path/to/file.gtf")
+    .add_bed_track("path/to/file.bed", label="TE")
+    .build()
+)
+
+fig = parser.plot("TP53")
+```
+
 #### Advanced Usage
 ```python
-from src.gtf_parser import GTFParser
-from src.utils import filter_transcripts, get_transcript_stats
+from drvizer import GTFParser, filter_transcripts, get_transcript_stats
 
-# Initialize parser
 parser = GTFParser("path/to/file.gtf")
-parser.parse_gtf("ENSG00000136997")
+parser.parse_gtf()
 
-# Get transcript data
 transcript_data = parser.get_transcript_data("ENSG00000136997")
-
-# Filter transcripts
 filtered_data = filter_transcripts(transcript_data, min_exons=3)
-
-# Get statistics
 stats = get_transcript_stats(transcript_data)
 print(stats)
 ```
@@ -180,8 +163,8 @@ print(stats)
 - `src/gtf_parser.py`: Main parser for GTF files with efficient caching for multiple genes and unified gene access
 - `src/bed_parser.py`: Parser for BED files to extract transposable element information
 - `src/visualizer.py`: Functions for visualizing transcript structures with improved formatting and sorting
-- `src/utils.py`: Utility functions for data processing
-- `drvizer.py`: Main command-line interface script
+- `src/api.py`: High-level chainable Python API for notebook and interactive use
+- `drvizer.py`: Repository-local CLI wrapper
 
 ## Requirements
 ------------
@@ -194,19 +177,13 @@ print(stats)
 ## Integration with Jupyter
 ------------------------
 
-This module can be easily used in Jupyter notebooks for interactive analysis:
-
 ```python
-# In a Jupyter notebook
 %matplotlib inline
 
-from src.gtf_parser import parse_gtf_for_gene
-from src.visualizer import visualize_gene_transcripts
+from drvizer import DrViz
 
-# Parse and visualize
-transcript_data = parse_gtf_for_gene("path/to/file.gtf", "ENSG00000136997")
-fig = visualize_gene_transcripts(transcript_data)
-fig.show()
+parser = DrViz().load_gtf("path/to/file.gtf").build()
+fig = parser.plot("ENSG00000136997")
 ```
 
 ## Improvements
