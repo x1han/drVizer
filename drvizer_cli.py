@@ -21,13 +21,13 @@ def main():
         epilog="""
 Examples:
   Parse and visualize a specific gene from GTF file:
-    python drvizer.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
+    python drvizer_cli.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
 
   Parse BED file for a genomic region:
-    python drvizer.py --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
+    python drvizer_cli.py --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
 
   Merge GTF and BED data for comprehensive visualization:
-    python drvizer.py --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
+    python drvizer_cli.py --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
         """
     )
 

@@ -57,7 +57,7 @@ drvizer --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
 Repository checkout usage:
 
 ```bash
-python drvizer.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
+python drvizer_cli.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
 ```
 
 ### Python API
@@ -164,7 +164,7 @@ print(stats)
 - `src/bed_parser.py`: Parser for BED files to extract transposable element information
 - `src/visualizer.py`: Functions for visualizing transcript structures with improved formatting and sorting
 - `src/api.py`: High-level chainable Python API for notebook and interactive use
-- `drvizer.py`: Repository-local CLI wrapper
+- `drvizer_cli.py`: Repository-local CLI wrapper
 
 ## Requirements
 ------------
