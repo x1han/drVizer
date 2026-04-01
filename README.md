@@ -160,10 +160,10 @@ print(stats)
 ## Module Structure
 ----------------
 
-- `src/gtf_parser.py`: Main parser for GTF files with efficient caching for multiple genes and unified gene access
-- `src/bed_parser.py`: Parser for BED files to extract transposable element information
-- `src/visualizer.py`: Functions for visualizing transcript structures with improved formatting and sorting
-- `src/api.py`: High-level chainable Python API for notebook and interactive use
+- `src/drvizer/gtf_parser.py`: Main parser for GTF files with efficient caching for multiple genes and unified gene access
+- `src/drvizer/bed_parser.py`: Parser for BED files to extract transposable element information
+- `src/drvizer/visualizer.py`: Functions for visualizing transcript structures with improved formatting and sorting
+- `src/drvizer/api.py`: High-level chainable Python API for notebook and interactive use
 - `drvizer_cli.py`: Repository-local CLI wrapper
 
 ## Requirements

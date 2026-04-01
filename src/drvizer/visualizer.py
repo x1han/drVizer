@@ -740,12 +740,17 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     
     # 1. Uniform processing of X-axis visibility control for all tracks
     for i, ax in enumerate(axes):
-        # If not the last track
+        # Remove subplot background fill so PDF editors do not create extra patch borders,
+        # but keep a single visible frame around each track via spines.
+        ax.patch.set_visible(False)
+        ax.spines['left'].set_visible(True)
+        ax.spines['right'].set_visible(True)
+        ax.spines['top'].set_visible(True)
+        ax.spines['bottom'].set_visible(True)
+
         if i < len(axes) - 1:
             # Hide X-axis tick marks (bottom=False) and tick labels (labelbottom=False)
             ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
-            # Remove X-axis spine (optional, if you want the plot to look more coherent)
-            # ax.spines['bottom'].set_visible(False) 
         else:
             # Bottommost track ensures ticks and labels are displayed
             ax.tick_params(axis='x', which='both', bottom=True, labelbottom=True)

@@ -12,8 +12,12 @@ from pathlib import Path
 
 from .gtf_parser import GTFParser
 from .bed_parser import BEDParser
-from .bam_parser import BAMParser
 from .visualizer import visualize_gene_transcripts, merge_parsers
+
+try:
+    from .bam_parser import BAMParser
+except ImportError:
+    BAMParser = None
 
 
 class DrViz:
@@ -141,6 +145,9 @@ class DrViz:
             y_axis_range: Y-axis range for coverage track
         """
         # Create a single BAM parser with all files (they get aggregated)
+        if BAMParser is None:
+            raise ImportError("BAM support requires pysam to be installed")
+
         bmp = BAMParser(
             bam_files, 
             track_label=label, 
