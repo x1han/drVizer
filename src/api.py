@@ -180,8 +180,10 @@ class DrViz:
     
     def plot(self, gene: str,
              output: str = None,
-             figsize: tuple = (12, 8),
+             figsize: tuple = None,
+             figfact: tuple = None,
              show: bool = False,
+             close: bool = False,
              **kwargs) -> plt.Figure:
         """
         Plot transcript visualization for a gene (one-time use).
@@ -189,15 +191,17 @@ class DrViz:
         Args:
             gene: Gene ID or name to visualize
             output: Output file path (optional)
-            figsize: Figure size (width, height)
+            figsize: Figure size (width, height). If None, use auto sizing.
+            figfact: Width/height scaling factor applied to auto size when figsize is not provided.
             show: Whether to display the plot
+            close: Whether to close the figure after plotting
             **kwargs: Additional arguments passed to visualize_gene_transcripts
             
         Returns:
             matplotlib Figure object
         """
         parser = self.build()
-        return parser.plot(gene, output=output, figsize=figsize, show=show, **kwargs)
+        return parser.plot(gene, output=output, figsize=figsize, figfact=figfact, show=show, close=close, **kwargs)
 
 
 class ReusableParser:
@@ -215,8 +219,10 @@ class ReusableParser:
     def plot(self, gene: Union[str, List[str]],
              transcript_to_show: Union[str, List[str]] = None,
              output: str = None,
-             figsize: tuple = (12, 8),
+             figsize: tuple = None,
+             figfact: tuple = None,
              show: bool = False,
+             close: bool = False,
              **kwargs) -> plt.Figure:
         """
         Plot transcript visualization for a gene using pre-parsed data.
@@ -225,8 +231,10 @@ class ReusableParser:
             gene: Gene ID or name to visualize, or list of genes (must be on same chromosome)
             transcript_to_show: Specific transcript ID or list of transcript IDs to show (optional)
             output: Output file path (optional)
-            figsize: Figure size (width, height)
+            figsize: Figure size (width, height). If None, use auto sizing.
+            figfact: Width/height scaling factor applied to auto size when figsize is not provided.
             show: Whether to display the plot (set to False in notebooks to avoid double display)
+            close: Whether to close the figure after plotting
             **kwargs: Additional arguments passed to visualize_gene_transcripts
             
         Returns:
@@ -286,19 +294,24 @@ class ReusableParser:
         
         # Create visualization with optional transcript_to_show filtering
         fig = visualize_gene_transcripts(gene_data, transcript_to_show=transcript_to_show, **kwargs)
-        fig.set_size_inches(figsize)
-        
+
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+        elif figfact is not None:
+            current_width, current_height = fig.get_size_inches()
+            fig.set_size_inches((current_width * figfact[0], current_height * figfact[1]))
+
         # Save if output specified
         if output:
-            plt.savefig(output, bbox_inches='tight', dpi=300)
+            fig.savefig(output, bbox_inches='tight', dpi=300)
             print(f"Plot saved to {output}")
-        
-        # Display control - in notebooks, set show=False to prevent double display
+
         if show:
             plt.show()
-        else:
-            plt.close(fig)  # Close the figure to prevent display
-        
+
+        if close:
+            plt.close(fig)
+
         return fig
     
     def get_available_genes(self) -> List[str]:
@@ -352,7 +365,7 @@ class ReusableParser:
         for gene in genes:
             filename = f"{prefix}{gene}.pdf"
             output_path = os.path.join(output_dir, filename)
-            self.plot(gene, output=output_path, show=False, **kwargs)
+            self.plot(gene, output=output_path, show=False, close=True, **kwargs)
             output_files.append(output_path)
             print(f"Plotted {gene} -> {output_path}")
         

@@ -12,7 +12,36 @@ import numpy as np
 from typing import Union, List
 
 
-def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse_order=False, 
+def _compute_track_layout(num_transcripts, separated_parsers_data=None, grouped_bed_data=None, bed_data=None,
+                          transcript_width=12, transcript_height=0.5,
+                          transcript_row_unit=0.5, distribution_row_unit=0.35,
+                          score_track_unit=1.6, coverage_track_unit=1.8,
+                          min_track_height=1.2):
+    track_heights = [max(min_track_height, num_transcripts * transcript_row_unit + 0.8)]
+
+    if separated_parsers_data is not None:
+        for parser_info in separated_parsers_data:
+            parser_type = parser_info.get('parser_type')
+            parser_data = parser_info.get('data', {})
+            use_peak_score = parser_info.get('use_peak_score', False)
+
+            if parser_type == 'coverage':
+                track_heights.append(max(min_track_height, coverage_track_unit))
+            elif use_peak_score:
+                track_heights.append(max(min_track_height, score_track_unit))
+            else:
+                row_count = len(parser_data) if isinstance(parser_data, dict) else 1
+                track_heights.append(max(min_track_height, row_count * distribution_row_unit + 0.8))
+    elif grouped_bed_data is not None:
+        for _, bed_elements in grouped_bed_data.items():
+            track_heights.append(max(min_track_height, score_track_unit if bed_elements else min_track_height))
+    elif bed_data is not None and len(bed_data) > 0:
+        track_heights.extend([max(min_track_height, score_track_unit)] * len(bed_data))
+
+    return transcript_width, sum(track_heights), track_heights
+
+
+def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse_order=False,
                               transcript_width=12, transcript_height=0.5, y_spacing=0.3,
                               bed_data=None, track_labels=None,
                               transcript_to_show: Union[str, List[str]] = None):
@@ -115,18 +144,29 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     
     # Total number of tracks (GTF + other parsers)
     total_tracks = 1 + num_other_parsers  # 1 for GTF, plus others
-    
-    # Calculate figure size - each track gets its own subplot
-    track_height = max(1, transcript_height + 0.5)  # Height for each track
-    total_height = total_tracks * track_height
-    
+
+    figure_width, total_height, track_heights = _compute_track_layout(
+        num_transcripts,
+        separated_parsers_data=separated_parsers_data,
+        grouped_bed_data=grouped_bed_data,
+        bed_data=bed_data,
+        transcript_width=transcript_width,
+        transcript_height=transcript_height
+    )
+
     # Create figure with subplots - one for each track
     if total_tracks > 1:
-        fig, axes = plt.subplots(total_tracks, 1, figsize=(transcript_width, total_height), 
-                                sharex=True, squeeze=False)
+        fig, axes = plt.subplots(
+            total_tracks,
+            1,
+            figsize=(figure_width, total_height),
+            sharex=True,
+            squeeze=False,
+            gridspec_kw={'height_ratios': track_heights}
+        )
         axes = axes.flatten()  # Ensure axes is a 1D array
     else:
-        fig, ax1 = plt.subplots(figsize=(transcript_width, track_height))
+        fig, ax1 = plt.subplots(figsize=(figure_width, total_height))
         axes = [ax1]
     
     # Find global start and end positions
