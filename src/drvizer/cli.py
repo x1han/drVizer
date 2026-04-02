@@ -9,9 +9,7 @@ Command-line interface for parsing GTF/BED files and visualizing gene transcript
 import argparse
 import sys
 
-from .gtf_parser import GTFParser
-from .bed_parser import BEDParser
-from .visualizer import visualize_gene_transcripts, save_visualization, merge_parsers
+from .api import DrViz
 from .utils import convert_to_json, convert_to_csv, get_transcript_stats, filter_transcripts
 
 
@@ -61,16 +59,15 @@ Examples:
         parser.error("--region requires --bed to be specified")
 
     try:
-        gtf_parser = None
         transcript_data = None
+        viz = None
 
         if args.gtf:
             print(f"Parsing GTF file(s): {args.gtf}")
-            gtf_parser = GTFParser(args.gtf)
+            viz = DrViz().load_gtf(args.gtf)
 
             if args.gene:
-                gtf_parser.parse_gtf()
-                transcript_data = gtf_parser.get_transcript_data(args.gene)
+                transcript_data = viz.gtf_parser.get_transcript_data(args.gene)
 
                 if any([args.min_exons, args.max_exons, args.min_length, args.max_length]):
                     transcript_data = filter_transcripts(
@@ -95,36 +92,26 @@ Examples:
                     convert_to_csv(transcript_data, args.csv)
                     print(f"Saved CSV data to {args.csv}")
 
-        bed_parser = None
-        bed_data = None
+        bed_region_data = None
 
         if args.bed:
-            print(f"Parsing BED file(s): {args.bed}")
-            bed_parser = BEDParser(args.bed)
-            bed_parser.parse_bed()
-
             if args.region:
-                chrom, pos = args.region.split(':')
-                start, end = map(int, pos.split('-'))
-                bed_data = bed_parser.get_anno_in_region(chrom, start, end)
-                print(f"Found {len(bed_data)} elements in region {args.region}")
+                parser.error("BED-only region mode is no longer supported; use --gtf together with --gene and optional --bed tracks")
+            if viz is None:
+                parser.error("--bed requires --gtf so tracks can be plotted through the high-level API")
 
-        if transcript_data or bed_data:
+            print(f"Parsing BED file(s): {args.bed}")
+            viz.add_bed_track(args.bed)
+
+        if transcript_data:
             print(f"Creating visualization: {args.output}")
-
-            if transcript_data and bed_data and gtf_parser and bed_parser:
-                merged_parser = merge_parsers(gtf_parser, bed_parser)
-                merged_data = merged_parser.get_transcript_data(args.gene)
-                fig = visualize_gene_transcripts(merged_data, transcript_width=args.width / 12)
-            elif transcript_data:
-                fig = visualize_gene_transcripts(transcript_data, transcript_width=args.width / 12)
-            else:
-                print("BED-only visualization not yet implemented")
-                return
-
+            fig = viz.plot(args.gene, show=False)
             fig.set_size_inches(args.width, args.height)
-            save_visualization(fig, args.output, format=args.format)
+            fig.savefig(args.output, format=args.format, dpi=300, bbox_inches='tight')
             print(f"Visualization saved to {args.output}")
+        elif bed_region_data:
+            print("BED-only visualization not yet implemented")
+            return
         else:
             print("No data to visualize")
 

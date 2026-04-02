@@ -98,9 +98,15 @@ python drvizer_cli.py --gtf genes.gtf --gene TP53 --output tp53_plot.png
 
 ## 2. Python API usage 📓
 
-### High-level API with `DrViz`
+Use the high-level `DrViz` workflow:
 
-This is the most convenient notebook-friendly interface.
+- `load_gtf(...)`
+- `add_bed_track(...)`
+- `add_bam_track(...)`
+- `build()`
+- `plot(...)`
+
+### Basic workflow
 
 ```python
 from drvizer import DrViz
@@ -115,7 +121,38 @@ parser = (
 fig = parser.plot("TP53")
 ```
 
-### Simple one-shot plotting
+### Add multiple BED tracks
+
+```python
+from drvizer import DrViz
+
+parser = (
+    DrViz()
+    .load_gtf("genes.gtf")
+    .add_bed_track("te.bed", label="TE", color="tomato")
+    .add_bed_track("rna_mod_sites.bed", label="m6A", color="royalblue")
+    .build()
+)
+
+fig = parser.plot("TP53")
+```
+
+### Add BAM coverage
+
+```python
+from drvizer import DrViz
+
+parser = (
+    DrViz()
+    .load_gtf("genes.gtf")
+    .add_bam_track("reads.bam", label="Coverage", color="steelblue")
+    .build()
+)
+
+fig = parser.plot("TP53")
+```
+
+### One-shot plotting
 
 ```python
 from drvizer import DrViz
@@ -123,38 +160,9 @@ from drvizer import DrViz
 fig = (
     DrViz()
     .load_gtf("genes.gtf")
+    .add_bed_track("repeats.bed", label="TE")
     .plot("TP53")
 )
-```
-
-### Low-level API
-
-If you want more control, you can use the parser and visualization functions directly.
-
-```python
-from drvizer import GTFParser, visualize_gene_transcripts
-
-parser = GTFParser("genes.gtf")
-parser.parse_gtf()
-transcript_data = parser.get_transcript_data("TP53")
-
-fig = visualize_gene_transcripts(transcript_data)
-```
-
-### Add BED annotations
-
-```python
-from drvizer import GTFParser, BEDParser, merge_parsers, visualize_gene_transcripts
-
-gtf_parser = GTFParser("genes.gtf")
-gtf_parser.parse_gtf()
-
-bed_parser = BEDParser("repeats.bed")
-bed_parser.parse_bed()
-
-merged = merge_parsers(gtf_parser, bed_parser)
-data = merged.get_transcript_data("TP53")
-fig = visualize_gene_transcripts(data)
 ```
 
 ### Jupyter / notebook usage
@@ -164,7 +172,13 @@ fig = visualize_gene_transcripts(data)
 
 from drvizer import DrViz
 
-parser = DrViz().load_gtf("genes.gtf").build()
+parser = (
+    DrViz()
+    .load_gtf("genes.gtf")
+    .add_bed_track("repeats.bed", label="TE")
+    .build()
+)
+
 fig = parser.plot("ENSG00000136997")
 ```
 
@@ -172,25 +186,16 @@ fig = parser.plot("ENSG00000136997")
 
 - Parse one or multiple **GTF** files
 - Access genes by **gene ID**, **gene name**, or **transcript ID**
-- Add **BED** annotation tracks
-- Add **BAM coverage** tracks
+- Add **BED** annotation tracks with `add_bed_track(...)`
+- Add **BAM coverage** tracks with `add_bam_track(...)`
 - Export figures as **PNG / PDF / SVG**
-- Reuse parsed data efficiently across many genes
-- Use either a **high-level chainable API** or **lower-level parser classes**
+- Reuse parsed data efficiently across many genes with `build()`
+- Use a single **high-level chainable API** centered on `DrViz`
 
 ## 📚 Main public API
 
-Commonly used imports include:
-
 ```python
-from drvizer import (
-    DrViz,
-    GTFParser,
-    BEDParser,
-    visualize_gene_transcripts,
-    save_visualization,
-    merge_parsers,
-)
+from drvizer import DrViz
 ```
 
 ## 🗂️ Project structure

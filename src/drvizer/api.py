@@ -12,12 +12,95 @@ from pathlib import Path
 
 from .gtf_parser import GTFParser
 from .bed_parser import BEDParser
-from .visualizer import visualize_gene_transcripts, merge_parsers
+from .visualizer import visualize_gene_transcripts
 
 try:
     from .bam_parser import BAMParser
 except ImportError:
     BAMParser = None
+
+
+class _BuiltParser:
+    """
+    Internal parser wrapper used by the high-level DrViz API.
+    """
+
+    def __init__(self, gtf_parser, other_parsers):
+        self.gtf_parser = gtf_parser
+        self.other_parsers = other_parsers
+
+    def get_transcript_data(self, gene_identifier, transcript_to_show=None):
+        identifiers = [gene_identifier] if isinstance(gene_identifier, str) else gene_identifier
+
+        combined_gene_data = None
+        target_chrom = None
+
+        for ident in identifiers:
+            current_data = self.gtf_parser.get_transcript_data(ident)
+
+            if target_chrom is None:
+                target_chrom = current_data['seqname']
+            elif target_chrom != current_data['seqname']:
+                raise ValueError(
+                    f"Error: Genes must be on the same chromosome. Found {target_chrom} and {current_data['seqname']}"
+                )
+
+            if combined_gene_data is None:
+                combined_gene_data = current_data
+            else:
+                combined_gene_data['transcripts'].extend(current_data['transcripts'])
+                combined_gene_data['original_identifier'] += f", {current_data['original_identifier']}"
+
+        seqname = target_chrom
+
+        if transcript_to_show is not None:
+            transcripts_to_use = [transcript_to_show] if isinstance(transcript_to_show, str) else transcript_to_show
+            filtered_transcripts = [
+                t for t in combined_gene_data['transcripts']
+                if t['transcript_id'] in transcripts_to_use
+            ]
+            all_starts = [exon['start'] for t in filtered_transcripts for exon in t['exons']]
+            all_ends = [exon['end'] for t in filtered_transcripts for exon in t['exons']]
+        else:
+            all_starts = [exon['start'] for t in combined_gene_data['transcripts'] for exon in t['exons']]
+            all_ends = [exon['end'] for t in combined_gene_data['transcripts'] for exon in t['exons']]
+
+        if all_starts and all_ends:
+            range_min, range_max = min(all_starts), max(all_ends)
+            padding = int((range_max - range_min) * 0.025)
+            gene_start = int(range_min - padding)
+            gene_end = int(range_max + padding)
+        else:
+            gene_start, gene_end = 0, 1000
+
+        parsers_data = []
+        peak_score_array = []
+        for i, parser in enumerate(self.other_parsers):
+            if hasattr(parser, 'get_coverage_in_region'):
+                x_data, y_data = parser.get_coverage_in_region(seqname, gene_start, gene_end)
+                data_payload = {'x': x_data, 'y': y_data}
+            elif hasattr(parser, 'get_grouped_anno_in_region'):
+                data_payload = parser.get_grouped_anno_in_region(seqname, gene_start, gene_end)
+            else:
+                continue
+
+            is_score_type = getattr(parser, 'parser_type', 'distribution') == 'score'
+            parsers_data.append({
+                'data': data_payload,
+                'parser_type': getattr(parser, 'parser_type', 'distribution'),
+                'use_peak_score': is_score_type,
+                'y_axis_range': getattr(parser, 'y_axis_range', None),
+                'track_label': getattr(parser, 'track_label', f'Track {i+1}'),
+                'color': getattr(parser, 'color', 'orange'),
+                'alpha': getattr(parser, 'alpha', 0.8),
+                'file_colors': getattr(parser, 'file_colors', None),
+                'file_alphas': getattr(parser, 'file_alphas', None)
+            })
+            peak_score_array.append(is_score_type)
+
+        combined_gene_data['separated_parsers_data'] = parsers_data
+        combined_gene_data['peak_score'] = peak_score_array
+        return combined_gene_data
 
 
 class DrViz:
@@ -175,13 +258,9 @@ class DrViz:
         if self.gtf_parser is None:
             raise ValueError("GTF file must be loaded first using load_gtf()")
         
-        # Merge all parsers
         if self.parsers:
-            all_parsers = [self.gtf_parser] + self.parsers
-            merged_parser = merge_parsers(*all_parsers)
-            # Store track configurations
-            merged_parser.track_configs = self.track_configs
-            return ReusableParser(merged_parser, self.track_configs)
+            built_parser = _BuiltParser(self.gtf_parser, self.parsers)
+            return ReusableParser(built_parser, self.track_configs)
         else:
             return ReusableParser(self.gtf_parser, [])
     
