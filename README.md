@@ -1,201 +1,220 @@
-# drVizer - Gene Transcript Visualization Tool
-==============================================
+# drVizer 🧬
 
-This Python module provides functionality for parsing GTF files and visualizing gene transcript structures. It is designed to work as a standalone tool but can also be integrated into other applications.
+**drVizer** is a visualization tool for **direct RNA-Seq** related analyses. It is designed to help inspect and present transcript-centric genomic information in a compact figure, including:
 
-## Features
-----------
+- **isoform structures**
+- **read-count / coverage-style tracks**
+- **transposable element (TE) annotations**
+- **RNA modification related annotations**
 
-- Parse GTF files to extract transcript information
-- Parse BED files to extract transposable element (TE) information
-- Visualize gene transcript structures with improved formatting
-- Export data in various formats (JSON, CSV)
-- Filter transcripts based on various criteria
-- Compare transcript structures from different sources
-- Efficiently handle multiple genes with cached parsing
-- Unified method for accessing genes by ID or name
-- Transcript sorting by exon order
-- Enhanced visualization with strand direction indicators
-- Support for parsing single or multiple GTF files
-- Merge GTF and BED data for comprehensive visualization
+The name **drVizer** comes from **direct RNA visualization**: a lightweight tool for turning transcript models and associated genomic annotations into publication-friendly plots.
 
-## Installation
---------------
+## ✨ What drVizer is for
 
-Install the package:
+drVizer focuses on transcript structure visualization from **GTF annotations**, with optional overlay tracks from **BED** and **BAM**-derived data.
+
+Typical use cases include:
+
+- visualizing **isoform architecture** for one gene
+- comparing transcript structures across genes or annotations
+- adding **TE / repeat** annotations to transcript plots
+- showing **coverage / read-count style** signal from BAM files
+- displaying extra interval-based annotations such as **RNA modification** sites
+
+## 📦 Installation
+
+### Option 1: Clone from GitHub and install locally
+
+```bash
+git clone https://github.com/x1han/drVizer.git
+cd drVizer
+pip install -e .
+```
+
+If you only want a regular local install instead of editable mode:
 
 ```bash
 pip install .
 ```
 
-For development:
+### Dependencies
+
+Core dependencies are listed in `requirements.txt` and include:
+
+- `pandas`
+- `matplotlib`
+- `numpy`
+
+If you want to use **BAM coverage tracks**, you may also need:
 
 ```bash
-pip install -e .
-pip install -r requirements.txt
+pip install pysam
 ```
 
-## Usage
------
+## 🚀 Two ways to use drVizer
 
-### Command Line Interface
----------------------
+drVizer supports both:
 
-Installed CLI usage:
+1. **CLI usage** for straightforward command-line plotting
+2. **Python API usage** for notebooks and scripted workflows
+
+---
+
+## 1. CLI usage 🖥️
+
+After installation, the CLI entry point is:
 
 ```bash
-# Parse and visualize a specific gene from GTF file
+drvizer
+```
+
+### Example: visualize one gene from a GTF file
+
+```bash
 drvizer --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
+```
 
-# Parse BED file for a genomic region
+### Example: visualize BED annotations in a genomic region
+
+```bash
 drvizer --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
+```
 
-# Merge GTF and BED data for comprehensive visualization
+### Example: combine GTF and BED data in one figure
+
+```bash
 drvizer --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
 ```
 
-Repository checkout usage:
+### Repository-local wrapper
+
+If you are working directly inside a cloned repository checkout, you can also run:
 
 ```bash
-python drvizer_cli.py --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
+python drvizer_cli.py --gtf genes.gtf --gene TP53 --output tp53_plot.png
 ```
 
-### Python API
-----------
+---
 
-#### Basic Usage
-```python
-from drvizer import parse_gtf_for_gene
-from drvizer import visualize_gene_transcripts, save_visualization
+## 2. Python API usage 📓
 
-transcript_data = parse_gtf_for_gene("path/to/file.gtf", "ENSG00000136997")
-fig = visualize_gene_transcripts(transcript_data)
-save_visualization(fig, "output.png")
-```
+### High-level API with `DrViz`
 
-#### Parse Multiple GTF Files
-```python
-from drvizer import parse_gtf_for_gene, parse_gtf_all_genes
+This is the most convenient notebook-friendly interface.
 
-gtf_files = ["path/to/file1.gtf", "path/to/file2.gtf", "path/to/file3.gtf"]
-transcript_data = parse_gtf_for_gene(gtf_files, "ENSG00000136997")
-all_genes_data = parse_gtf_all_genes(gtf_files)
-```
-
-#### Efficient Multiple Genes Usage
-```python
-from drvizer import GTFParser, visualize_gene_transcripts, save_visualization
-
-parser = GTFParser(["path/to/file1.gtf", "path/to/file2.gtf"])
-parser.parse_gtf()
-
-for gene_id in ["ENSG00000136997", "ENSG00000236998", "ENSG00000188015.10"]:
-    transcript_data = parser.get_transcript_data(gene_id)
-    fig = visualize_gene_transcripts(transcript_data)
-    save_visualization(fig, f"{gene_id}_transcripts.png")
-```
-
-#### Access Genes by Name or ID
-```python
-from drvizer import GTFParser
-
-parser = GTFParser("path/to/file.gtf")
-parser.parse_gtf()
-
-transcript_data_by_id = parser.get_transcript_data("ENSG00000136997")
-transcript_data_by_name = parser.get_transcript_data("TP53")
-```
-
-#### Parse BED Files for Transposable Elements
-```python
-from drvizer import BEDParser
-
-bed_parser = BEDParser("path/to/file.bed")
-bed_data = bed_parser.parse_bed()
-anno_in_region = bed_parser.get_anno_in_region("chr1", 1000000, 2000000)
-```
-
-#### Merge GTF and BED Data for Comprehensive Visualization
-```python
-from drvizer import GTFParser, BEDParser, merge_parsers, visualize_gene_transcripts
-
-gtf_parser = GTFParser("path/to/file.gtf")
-bed_parser = BEDParser("path/to/file.bed")
-
-gtf_parser.parse_gtf()
-bed_parser.parse_bed()
-
-merged_parser = merge_parsers(gtf_parser, bed_parser)
-gene_data = merged_parser.get_transcript_data("ENSG00000136997")
-fig = visualize_gene_transcripts(gene_data)
-```
-
-#### High-level API
 ```python
 from drvizer import DrViz
 
 parser = (
     DrViz()
-    .load_gtf("path/to/file.gtf")
-    .add_bed_track("path/to/file.bed", label="TE")
+    .load_gtf("genes.gtf")
+    .add_bed_track("repeats.bed", label="TE")
     .build()
 )
 
 fig = parser.plot("TP53")
 ```
 
-#### Advanced Usage
+### Simple one-shot plotting
+
 ```python
-from drvizer import GTFParser, filter_transcripts, get_transcript_stats
+from drvizer import DrViz
 
-parser = GTFParser("path/to/file.gtf")
-parser.parse_gtf()
-
-transcript_data = parser.get_transcript_data("ENSG00000136997")
-filtered_data = filter_transcripts(transcript_data, min_exons=3)
-stats = get_transcript_stats(transcript_data)
-print(stats)
+fig = (
+    DrViz()
+    .load_gtf("genes.gtf")
+    .plot("TP53")
+)
 ```
 
-## Module Structure
-----------------
+### Low-level API
 
-- `src/drvizer/gtf_parser.py`: Main parser for GTF files with efficient caching for multiple genes and unified gene access
-- `src/drvizer/bed_parser.py`: Parser for BED files to extract transposable element information
-- `src/drvizer/visualizer.py`: Functions for visualizing transcript structures with improved formatting and sorting
-- `src/drvizer/api.py`: High-level chainable Python API for notebook and interactive use
-- `drvizer_cli.py`: Repository-local CLI wrapper
+If you want more control, you can use the parser and visualization functions directly.
 
-## Requirements
-------------
+```python
+from drvizer import GTFParser, visualize_gene_transcripts
 
-- Python 3.7+
-- pandas
-- matplotlib
-- numpy
+parser = GTFParser("genes.gtf")
+parser.parse_gtf()
+transcript_data = parser.get_transcript_data("TP53")
 
-## Integration with Jupyter
-------------------------
+fig = visualize_gene_transcripts(transcript_data)
+```
+
+### Add BED annotations
+
+```python
+from drvizer import GTFParser, BEDParser, merge_parsers, visualize_gene_transcripts
+
+gtf_parser = GTFParser("genes.gtf")
+gtf_parser.parse_gtf()
+
+bed_parser = BEDParser("repeats.bed")
+bed_parser.parse_bed()
+
+merged = merge_parsers(gtf_parser, bed_parser)
+data = merged.get_transcript_data("TP53")
+fig = visualize_gene_transcripts(data)
+```
+
+### Jupyter / notebook usage
 
 ```python
 %matplotlib inline
 
 from drvizer import DrViz
 
-parser = DrViz().load_gtf("path/to/file.gtf").build()
+parser = DrViz().load_gtf("genes.gtf").build()
 fig = parser.plot("ENSG00000136997")
 ```
 
-## Improvements
-------------
+## 🧩 Main capabilities
 
-The drVizer tool includes several improvements:
+- Parse one or multiple **GTF** files
+- Access genes by **gene ID**, **gene name**, or **transcript ID**
+- Add **BED** annotation tracks
+- Add **BAM coverage** tracks
+- Export figures as **PNG / PDF / SVG**
+- Reuse parsed data efficiently across many genes
+- Use either a **high-level chainable API** or **lower-level parser classes**
 
-1. **Unified Method**: The `get_transcript_data` method now works with both gene IDs and gene names, eliminating the need for separate methods.
-2. **Improved Visualization**: Better spacing prevents y-stick stacking and makes the visualizations clearer.
-3. **Transcript Sorting**: Transcripts are now sorted by exon order for better organization.
-4. **Enhanced Titles**: Titles now use 5' → 3' and 3' ← 5' indicators to clearly show strand direction.
-5. **Better Formatting**: Overall improved formatting and layout for clearer visualizations.
-6. **Multiple GTF Support**: Support for parsing single or multiple GTF files with unified API.
-7. **BED File Support**: Added support for parsing BED files containing transposable element data.
-8. **Merged Visualization**: Ability to merge GTF and BED data for comprehensive visualization of genes and overlapping TEs.
+## 📚 Main public API
+
+Commonly used imports include:
+
+```python
+from drvizer import (
+    DrViz,
+    GTFParser,
+    BEDParser,
+    visualize_gene_transcripts,
+    save_visualization,
+    merge_parsers,
+)
+```
+
+## 🗂️ Project structure
+
+- `src/drvizer/gtf_parser.py` — GTF parsing and transcript extraction
+- `src/drvizer/bed_parser.py` — BED parsing and annotation grouping
+- `src/drvizer/bam_parser.py` — BAM-based coverage extraction
+- `src/drvizer/visualizer.py` — figure generation and track layout
+- `src/drvizer/api.py` — high-level chainable API
+- `src/drvizer/cli.py` — installed CLI entry point
+- `drvizer_cli.py` — repository-local CLI wrapper
+
+## ⚠️ Notes
+
+- Python package import name is **`drvizer`**
+- Repository name is **`drVizer`**
+- Python imports are case-sensitive, so use:
+
+```python
+from drvizer import DrViz
+```
+
+not:
+
+```python
+from drVizer import DrViz
+```
