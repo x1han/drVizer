@@ -159,3 +159,4 @@ logs/
 CLAUDE.md
 test_api_fix.py
 test_transcript_list.py
+plan/

@@ -1,13 +1,13 @@
 # drVizer 🧬
 
-**drVizer** is a visualization tool for **direct RNA-Seq** related analyses. It is designed to help inspect and present transcript-centric genomic information in a compact figure, including:
+**drVizer** is a visualization tool for **direct RNA-Seq** related analyses. It helps turn transcript-centric genomic information into compact, publication-friendly figures, including:
 
 - **isoform structures**
 - **read-count / coverage-style tracks**
 - **transposable element (TE) annotations**
 - **RNA modification related annotations**
 
-The name **drVizer** comes from **direct RNA visualization**: a lightweight tool for turning transcript models and associated genomic annotations into publication-friendly plots.
+The name **drVizer** comes from **direct RNA visualization**.
 
 ## ✨ What drVizer is for
 
@@ -23,7 +23,7 @@ Typical use cases include:
 
 ## 📦 Installation
 
-### Option 1: Clone from GitHub and install locally
+### Clone from GitHub and install locally
 
 ```bash
 git clone https://github.com/x1han/drVizer.git
@@ -31,19 +31,15 @@ cd drVizer
 pip install -e .
 ```
 
-If you only want a regular local install instead of editable mode:
+If you want a regular local install instead of editable mode:
 
 ```bash
 pip install .
 ```
 
-### Dependencies
+### Optional dependency for BAM tracks
 
-Core dependencies are listed in `requirements.txt` and include:
-
-- `pandas`
-- `matplotlib`
-- `numpy`
+Core dependencies are listed in `requirements.txt`.
 
 If you want to use **BAM coverage tracks**, you may also need:
 
@@ -53,7 +49,7 @@ pip install pysam
 
 ## 🚀 Two ways to use drVizer
 
-drVizer supports both:
+`drVizer` supports both:
 
 1. **CLI usage** for straightforward command-line plotting
 2. **Python API usage** for notebooks and scripted workflows
@@ -68,25 +64,21 @@ After installation, the CLI entry point is:
 drvizer
 ```
 
-### Example: visualize one gene from a GTF file
+The supported CLI workflow is gene-centric: provide a GTF file, a target gene, and optionally one or more BED tracks.
+
+### Visualize one gene from a GTF file
 
 ```bash
 drvizer --gtf genes.gtf --gene ENSG00000136997 --output gene_plot.png
 ```
 
-### Example: visualize BED annotations in a genomic region
-
-```bash
-drvizer --bed repeats.bed --region chr1:1000000-2000000 --output te_plot.png
-```
-
-### Example: combine GTF and BED data in one figure
+### Combine GTF and BED data in one figure
 
 ```bash
 drvizer --gtf genes.gtf --bed repeats.bed --gene TP53 --output merged_plot.png
 ```
 
-### Repository-local wrapper
+### Run the repository-local wrapper
 
 If you are working directly inside a cloned repository checkout, you can also run:
 
@@ -98,7 +90,7 @@ python drvizer_cli.py --gtf genes.gtf --gene TP53 --output tp53_plot.png
 
 ## 2. Python API usage 📓
 
-Use the high-level `DrViz` workflow:
+The high-level workflow is:
 
 - `load_gtf(...)`
 - `add_bed_track(...)`
@@ -200,11 +192,11 @@ from drvizer import DrViz
 
 ## 🗂️ Project structure
 
+- `src/drvizer/api.py` — high-level chainable API
 - `src/drvizer/gtf_parser.py` — GTF parsing and transcript extraction
 - `src/drvizer/bed_parser.py` — BED parsing and annotation grouping
 - `src/drvizer/bam_parser.py` — BAM-based coverage extraction
 - `src/drvizer/visualizer.py` — figure generation and track layout
-- `src/drvizer/api.py` — high-level chainable API
 - `src/drvizer/cli.py` — installed CLI entry point
 - `drvizer_cli.py` — repository-local CLI wrapper
 
