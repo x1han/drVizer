@@ -64,7 +64,12 @@ class PreparedDataSource:
 
         prepared_tracks = []
         for i, track in enumerate(self.tracks):
-            if hasattr(track, 'get_coverage_in_region'):
+            # Handle transcript-coordinate BAM tracks
+            if hasattr(track, 'transcript_coord') and track.transcript_coord:
+                payload = track.get_coverage_for_transcripts(gene_identifier)
+                track_data = {'x': payload[0], 'y': payload[1]}
+                track_kind = 'coverage'
+            elif hasattr(track, 'get_coverage_in_region'):
                 payload = track.get_coverage_in_region(target_chrom, gene_start, gene_end)
                 track_data = {'x': payload[0], 'y': payload[1]}
                 track_kind = 'coverage'
@@ -91,38 +96,38 @@ class PreparedDataSource:
 
 class DrViz:
     """Chainable public API for building transcript visualizations."""
-    
+
     def __init__(self):
         self.gtf_parser = None
         self.parsers = []
         self.track_configs = []
-    
+
     def load_gtf(self, gtf_files: Union[str, List[str]]) -> 'DrViz':
         """Load one or more GTF files and reset any previously added tracks."""
         if isinstance(gtf_files, str):
             gtf_files = [gtf_files]
-        
+
         self.gtf_parser = GTFParser(gtf_files)
         self.gtf_parser.parse_gtf()
-        
+
         # Reset parsers and track configs for fresh start
         self.parsers = []
         self.track_configs = []
-        
+
         return self
-    
+
     def add_bed_track(self, bed_files: Union[str, List[str]],
-                     label: str = None,
-                     color: Union[str, List[str]] = 'orange',
-                     alpha: Union[float, List[float]] = 0.8,
-                     parser_type: str = 'distribution',
-                     y_axis_range: float = None,
-                     transcript_coord: bool = False,
-                     **kwargs) -> 'DrViz':
+                      label: str = None,
+                      color: Union[str, List[str]] = 'orange',
+                      alpha: Union[float, List[float]] = 0.8,
+                      parser_type: str = 'distribution',
+                      y_axis_range: float = None,
+                      transcript_coord: bool = False,
+                      **kwargs) -> 'DrViz':
         """Add one BED-backed track to the current visualization builder."""
         if label is None:
             label = f'Track_{len(self.parsers) + 1}'
-            
+
         files = [bed_files] if isinstance(bed_files, str) else bed_files
         colors = [color] * len(files) if isinstance(color, str) else color
         alphas = [alpha] * len(files) if isinstance(alpha, (float, int)) else alpha
@@ -145,7 +150,7 @@ class DrViz:
         bp.parse_bed()
         self.parsers.append(bp)
         self.track_configs.append({
-            'label': label, 
+            'label': label,
             'color': bp.color,  # Use the actual valid color
             'alpha': bp.alpha,
             'type': parser_type,
@@ -153,15 +158,26 @@ class DrViz:
             'file_alphas': alphas
         })
         return self
-    
+
     def add_bam_track(self, bam_files: Union[str, List[str]],
-                     label: str = "Coverage",
-                     color: str = 'steelblue',
-                     alpha: float = 0.6,
-                     aggregate_method: str = 'sum',
-                     y_axis_range: float = None,
-                     **kwargs) -> 'DrViz':
-        """Add one BAM-backed coverage track to the current visualization builder."""
+                      label: str = "Coverage",
+                      color: str = 'steelblue',
+                      alpha: float = 0.6,
+                      aggregate_method: str = 'sum',
+                      y_axis_range: float = None,
+                      transcript_coord: bool = False,
+                      **kwargs) -> 'DrViz':
+        """Add one BAM-backed coverage track to the current visualization builder.
+
+        Args:
+            bam_files: Path or list of paths to BAM files
+            label: Track label for display
+            color: Color for the coverage plot
+            alpha: Transparency (0-1)
+            aggregate_method: 'sum' or 'mean' for multiple BAM files
+            y_axis_range: Fixed y-axis maximum (None for auto)
+            transcript_coord: If True, treat BAM as transcript-aligned
+        """
         if BAMParser is None:
             raise ImportError("BAM support requires pysam to be installed")
 
@@ -170,25 +186,27 @@ class DrViz:
             track_label=label,
             color=color,
             aggregate_method=aggregate_method,
-            y_axis_range=y_axis_range
+            y_axis_range=y_axis_range,
+            transcript_coord=transcript_coord,
+            gtf_parser=self.gtf_parser if transcript_coord else None
         )
         bmp.alpha = alpha
         self.parsers.append(bmp)
         self.track_configs.append({
-            'label': label, 
-            'color': color, 
-            'alpha': alpha, 
+            'label': label,
+            'color': color,
+            'alpha': alpha,
             'type': 'coverage'
         })
         return self
-    
+
     def build(self) -> 'ReusableParser':
         """Freeze the current builder state into a reusable plotting object."""
         if self.gtf_parser is None:
             raise ValueError("GTF file must be loaded first using load_gtf()")
-        
+
         return ReusableParser(PreparedDataSource(self.gtf_parser, self.parsers), self.track_configs)
-    
+
     def get_transcript_data(self, gene: Union[str, List[str]], transcript_to_show: Union[str, List[str]] = None) -> Dict[str, Any]:
         """Return normalized plotting data for one gene or a same-chromosome gene list."""
         parser = self.build()
@@ -208,11 +226,11 @@ class DrViz:
 
 class ReusableParser:
     """Reusable plotting object backed by one prepared DrViz data source."""
-    
+
     def __init__(self, data_source, track_configs):
         self.data_source = data_source
         self.track_configs = track_configs
-    
+
     def plot(self, gene: Union[str, List[str]],
              transcript_to_show: Union[str, List[str]] = None,
              output: str = None,
@@ -254,7 +272,7 @@ class ReusableParser:
             plt.close(fig)
 
         return fig
-    
+
     def get_available_genes(self) -> List[str]:
         """Return all available gene IDs from the loaded GTF data."""
         if hasattr(self.data_source, 'gtf_parser'):
@@ -274,7 +292,7 @@ class ReusableParser:
         """Plot multiple genes and save each figure into one output directory."""
         import os
         os.makedirs(output_dir, exist_ok=True)
-        
+
         output_files = []
         for gene in genes:
             filename = f"{prefix}{gene}.pdf"
@@ -282,7 +300,7 @@ class ReusableParser:
             self.plot(gene, output=output_path, show=False, close=True, **kwargs)
             output_files.append(output_path)
             print(f"Plotted {gene} -> {output_path}")
-        
+
         return output_files
 
 
@@ -294,11 +312,11 @@ def quick_batch(gtf_file: str,
                 **kwargs) -> List[str]:
     """Convenience helper for batch plotting from one GTF and optional BED tracks."""
     viz = DrViz().load_gtf(gtf_file)
-    
+
     if bed_files:
         for bed_file in bed_files:
             viz.add_bed_track(bed_file)
-    
+
     return viz.batch_plot(genes, output_dir, **kwargs)
 
 
@@ -309,9 +327,9 @@ def quick_plot(gtf_file: str,
                **kwargs) -> plt.Figure:
     """Convenience helper for one-shot plotting from one GTF and optional BED tracks."""
     viz = DrViz().load_gtf(gtf_file)
-    
+
     if bed_files:
         for bed_file in bed_files:
             viz.add_bed_track(bed_file)
-    
+
     return viz.plot(gene, output=output, **kwargs)
