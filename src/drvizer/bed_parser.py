@@ -46,27 +46,12 @@ class BEDParser:
         self.anno_data = defaultdict(list)
         self._parsed = False
         
-    def convert_transcript_to_genomic_coords(self, transcript_id, transcript_start, transcript_end):
-        """
-        Convert transcript coordinates to genomic coordinates using GTF parser.
-        """
-        if not self.gtf_parser:
-            raise ValueError("gtf_parser is required for transcript coordinate conversion")
 
-        result = self.gtf_parser.convert_transcript_to_genomic(transcript_id, transcript_start, transcript_end)
-        if not result:
-            return None, None, None, None
 
-        chrom, genomic_start, genomic_end = result
-        _, transcript_structure = self.gtf_parser.find_transcript(transcript_id)
-        genomic_strand = transcript_structure['strand'] if transcript_structure else None
-        return chrom, genomic_start, genomic_end, genomic_strand
 
-        
 
-    
 
-        
+
     def parse_bed(self, chrom=None, start=None, end=None):
         """
         Parse the BED file(s) and extract annotation information.
@@ -184,29 +169,22 @@ class BEDParser:
                         if self.transcript_coord:
                             if not self.gtf_parser:
                                 raise ValueError("gtf_parser is required when transcript_coord is True")
-                            
-                            # Extract transcript ID from the first column
-                            transcript_id = record['chrom']  # In transcript coordinate BED, chrom field is actually transcript ID
-                            transcript_start = record['start']
-                            transcript_end = record['end']
-                            transcript_strand = record['strand']
-                            
-                            # Convert transcript coordinates to genomic coordinates
-                            chrom, genomic_start, genomic_end, genomic_strand = \
-                                self.convert_transcript_to_genomic_coords(transcript_id, transcript_start, transcript_end)
-                            
-                            if chrom is None:
-                                # If transcript not found in GTF, skip this record
+
+                            transcript_id = record['chrom']
+                            result = self.gtf_parser.convert_transcript_to_genomic_segments(
+                                transcript_id, record['start'], record['end']
+                            )
+                            if not result:
                                 continue
-                            
-                            # Update record with genomic coordinates
-                            record['chrom'] = chrom
-                            record['start'] = genomic_start
-                            record['end'] = genomic_end
-                            record['strand'] = genomic_strand
-                            
-                            # Store annotation data grouped by chromosome
-                            self.anno_data[record['chrom']].append(record)
+
+                            chrom, genomic_strand, segments = result
+                            for genomic_start, genomic_end in segments:
+                                segment_record = record.copy()
+                                segment_record['chrom'] = chrom
+                                segment_record['start'] = genomic_start
+                                segment_record['end'] = genomic_end
+                                segment_record['strand'] = genomic_strand
+                                self.anno_data[segment_record['chrom']].append(segment_record)
                         else:
                             # Store annotation data grouped by chromosome
                             self.anno_data[record['chrom']].append(record)

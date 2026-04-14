@@ -92,20 +92,30 @@ class BAMParser:
         transcripts = gene_data['transcripts']
         target_chrom = gene_data['seqname']
 
-        genomic_intervals = []
+        region_start = None
+        region_end = None
+        for transcript_info in transcripts:
+            for exon in transcript_info['exons']:
+                exon_start = exon['start']
+                exon_end = exon['end'] + 1
+                region_start = exon_start if region_start is None else min(region_start, exon_start)
+                region_end = exon_end if region_end is None else max(region_end, exon_end)
+
+        if region_start is None or region_end is None or region_end <= region_start:
+            return np.array([]), np.array([])
+
+        region_len = region_end - region_start
+        coverage = np.zeros(region_len, dtype=np.int32)
 
         for path in self.bam_paths:
             with pysam.AlignmentFile(path, "rb") as sam:
                 transcript_lengths = {ref['SN']: ref['LN'] for ref in sam.header['SQ']}
-                available_transcripts = set(transcript_lengths.keys())
 
                 for transcript_info in transcripts:
                     transcript_id = transcript_info['transcript_id']
-
-                    if transcript_id not in available_transcripts:
+                    transcript_len = transcript_lengths.get(transcript_id)
+                    if transcript_len is None:
                         continue
-
-                    transcript_len = transcript_lengths[transcript_id]
 
                     for read in sam.fetch(transcript_id, 0, transcript_len):
                         blocks = read.get_blocks()
@@ -113,34 +123,21 @@ class BAMParser:
                             continue
 
                         for t_start, t_end in blocks:
-                            result = self.gtf_parser.convert_transcript_to_genomic(
+                            result = self.gtf_parser.convert_transcript_to_genomic_segments(
                                 transcript_id, t_start, t_end
                             )
-                            if result:
-                                chrom, g_start, g_end = result
-                                genomic_intervals.append((chrom, g_start, g_end, 1))
+                            if not result:
+                                continue
 
-        if not genomic_intervals:
-            return np.array([]), np.array([])
+                            chrom, _, segments = result
+                            if chrom != target_chrom:
+                                continue
 
-        all_starts = [iv[1] for iv in genomic_intervals]
-        all_ends = [iv[2] for iv in genomic_intervals]
-        region_start = min(all_starts)
-        region_end = max(all_ends)
-        region_len = region_end - region_start
-
-        if region_len <= 0:
-            return np.array([]), np.array([])
-
-        coverage = np.zeros(region_len, dtype=np.int32)
-
-        for chrom, g_start, g_end, count in genomic_intervals:
-            if chrom != target_chrom:
-                continue
-            idx_s = max(0, g_start - region_start)
-            idx_e = min(region_len, g_end - region_start)
-            if idx_s < idx_e:
-                coverage[idx_s:idx_e] += count
+                            for g_start, g_end in segments:
+                                idx_s = max(0, g_start - region_start)
+                                idx_e = min(region_len, g_end - region_start)
+                                if idx_s < idx_e:
+                                    coverage[idx_s:idx_e] += 1
 
         if self.aggregate_method == 'mean' and len(self.bam_paths) > 1:
             coverage = coverage.astype(np.float64) / len(self.bam_paths)

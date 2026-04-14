@@ -40,6 +40,7 @@ class GTFParser:
         self._parsed = False
         self.gene_name_to_id = {}  # Map gene names to gene IDs
         self._transcripts_from_previous_files = set()  # Track transcripts from previous files
+        self.transcript_to_gene = {}
         
     def parse_gtf(self, gene_id=None):
         """
@@ -213,6 +214,7 @@ class GTFParser:
                     'strand': row['strand'],
                     'seqname': row['seqname']
                 }
+                self.transcript_to_gene[transcript_id] = gene_id_row
                 
             # Add feature information based on type
             if row['feature'] == 'exon':
@@ -330,10 +332,76 @@ class GTFParser:
         Returns:
             tuple: (gene_id, transcript_structure) or (None, None) if not found
         """
-        for gene_id, transcripts in self.gene_transcripts.items():
-            if transcript_id in transcripts:
-                return gene_id, transcripts[transcript_id]
-        return None, None
+        gene_id = self.transcript_to_gene.get(transcript_id)
+        if gene_id is None:
+            return None, None
+        return gene_id, self.gene_transcripts[gene_id].get(transcript_id)
+
+    def _get_projection_exons(self, transcript_structure):
+        exons = transcript_structure.get('_projection_exons')
+        if exons is not None:
+            return exons
+
+        exons = sorted(transcript_structure['exons'], key=lambda x: x['start'])
+        if transcript_structure['strand'] == '+':
+            projection_exons = exons
+        else:
+            projection_exons = list(reversed(exons))
+
+        transcript_pos = 0
+        projection_exons_with_offsets = []
+        for exon in projection_exons:
+            exon_len = exon['end'] - exon['start'] + 1
+            projection_exons_with_offsets.append((exon, transcript_pos, transcript_pos + exon_len))
+            transcript_pos += exon_len
+
+        transcript_structure['_projection_exons'] = projection_exons_with_offsets
+        return projection_exons_with_offsets
+
+    def convert_transcript_to_genomic_segments(self, transcript_id, transcript_start, transcript_end):
+        """
+        Convert transcript coordinates to one or more genomic exon segments.
+
+        Args:
+            transcript_id (str): The transcript ID
+            transcript_start (int): Start position in transcript coordinates
+            transcript_end (int): End position in transcript coordinates
+
+        Returns:
+            tuple: (chrom, strand, segments) where segments is a list of
+                (genomic_start, genomic_end) half-open genomic intervals
+        """
+        _, transcript_structure = self.find_transcript(transcript_id)
+        if not transcript_structure:
+            return None
+
+        genomic_strand = transcript_structure['strand']
+        seqname = transcript_structure['seqname']
+        segments = []
+
+        interval_start = min(transcript_start, transcript_end)
+        interval_end = max(transcript_start, transcript_end)
+        if interval_start == interval_end:
+            return seqname, genomic_strand, []
+
+        for exon, exon_t_start, exon_t_end in self._get_projection_exons(transcript_structure):
+            overlap_start = max(interval_start, exon_t_start)
+            overlap_end = min(interval_end, exon_t_end)
+            if overlap_start < overlap_end:
+                if genomic_strand == '+':
+                    genomic_start = exon['start'] + (overlap_start - exon_t_start)
+                    genomic_end = exon['start'] + (overlap_end - exon_t_start)
+                else:
+                    genomic_start = exon['end'] - (overlap_end - exon_t_start) + 1
+                    genomic_end = exon['end'] - (overlap_start - exon_t_start) + 1
+
+                if genomic_start > genomic_end:
+                    genomic_start, genomic_end = genomic_end, genomic_start
+
+                segments.append((genomic_start, genomic_end))
+
+        segments.sort(key=lambda x: x[0])
+        return seqname, genomic_strand, segments
 
     def convert_transcript_to_genomic(self, transcript_id, transcript_start, transcript_end):
         """
@@ -347,52 +415,16 @@ class GTFParser:
         Returns:
             tuple: (chrom, genomic_start, genomic_end) or None if not found
         """
-        _, transcript_structure = self.find_transcript(transcript_id)
-        if not transcript_structure:
+        result = self.convert_transcript_to_genomic_segments(transcript_id, transcript_start, transcript_end)
+        if not result:
             return None
 
-        exons = sorted(transcript_structure['exons'], key=lambda x: x['start'])
-        genomic_strand = transcript_structure['strand']
-        seqname = transcript_structure['seqname']
-
-        genomic_start = None
-        genomic_end = None
-
-        if genomic_strand == '+':
-            transcript_pos = 0
-            for exon in exons:
-                exon_len = exon['end'] - exon['start'] + 1
-                exon_end_pos = transcript_pos + exon_len
-
-                if transcript_pos <= transcript_start < exon_end_pos:
-                    genomic_start = exon['start'] + (transcript_start - transcript_pos)
-
-                if transcript_pos <= transcript_end < exon_end_pos:
-                    genomic_end = exon['start'] + (transcript_end - transcript_pos)
-                    break
-
-                transcript_pos = exon_end_pos
-        else:
-            transcript_pos = 0
-            for exon in reversed(exons):
-                exon_len = exon['end'] - exon['start'] + 1
-                exon_end_pos = transcript_pos + exon_len
-
-                if transcript_pos <= transcript_start < exon_end_pos:
-                    genomic_start = exon['end'] - (transcript_start - transcript_pos)
-
-                if transcript_pos <= transcript_end < exon_end_pos:
-                    genomic_end = exon['end'] - (transcript_end - transcript_pos)
-                    break
-
-                transcript_pos = exon_end_pos
-
-        if genomic_start is None or genomic_end is None:
+        seqname, _, segments = result
+        if not segments:
             return None
 
-        if genomic_start > genomic_end:
-            genomic_start, genomic_end = genomic_end, genomic_start
-
+        genomic_start = segments[0][0]
+        genomic_end = segments[-1][1]
         return seqname, genomic_start, genomic_end
 
     def get_all_genes(self):
@@ -429,28 +461,26 @@ class GTFParser:
         # Check if it's a gene ID (exists in gene_transcripts)
         if identifier in self.gene_transcripts:
             return 'gene_id', identifier
-            
+
         # Check if it's a gene name (exists in gene_name_to_id)
         if identifier in self.gene_name_to_id:
             return 'gene_name', self.gene_name_to_id[identifier]
-            
+
         # Check if it's a transcript ID
-        for gene_id, transcripts in self.gene_transcripts.items():
-            if identifier in transcripts:
-                return 'transcript_id', gene_id
-                
+        if identifier in self.transcript_to_gene:
+            return 'transcript_id', self.transcript_to_gene[identifier]
+
         # Try to parse if not found
         self.parse_gtf(identifier)
-        
+
         # Check again if it's a gene ID
         if identifier in self.gene_transcripts:
             return 'gene_id', identifier
-            
+
         # Check again if it's a transcript ID
-        for gene_id, transcripts in self.gene_transcripts.items():
-            if identifier in transcripts:
-                return 'transcript_id', gene_id
-                
+        if identifier in self.transcript_to_gene:
+            return 'transcript_id', self.transcript_to_gene[identifier]
+
         return None, None
     
     def get_transcript_data(self, gene_identifier):
