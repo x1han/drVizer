@@ -49,84 +49,19 @@ class BEDParser:
     def convert_transcript_to_genomic_coords(self, transcript_id, transcript_start, transcript_end):
         """
         Convert transcript coordinates to genomic coordinates using GTF parser.
-        
-        Args:
-            transcript_id (str): The transcript ID to look up
-            transcript_start (int): Start position in transcript coordinates
-            transcript_end (int): End position in transcript coordinates
-            
-        Returns:
-            tuple: (chrom, genomic_start, genomic_end, genomic_strand) or (None, None, None, None) if not found
         """
         if not self.gtf_parser:
             raise ValueError("gtf_parser is required for transcript coordinate conversion")
-        
-        # Get transcript structure from GTF parser
-        transcript_structure = None
-        for gene_id, transcripts in self.gtf_parser.gene_transcripts.items():
-            if transcript_id in transcripts:
-                transcript_structure = transcripts[transcript_id]
-                break
-        
-        if not transcript_structure:
+
+        result = self.gtf_parser.convert_transcript_to_genomic(transcript_id, transcript_start, transcript_end)
+        if not result:
             return None, None, None, None
-        
-        # Get exons and strand
-        exons = sorted(transcript_structure['exons'], key=lambda x: x['start'])
-        genomic_strand = transcript_structure['strand']
-        seqname = transcript_structure['seqname']
-        
-        # Create a mapping from transcript position to genomic position
-        if genomic_strand == '+':
-            # For positive strand
-            genomic_start = None
-            genomic_end = None
-            
-            transcript_pos = 0
-            for exon in exons:
-                exon_len = exon['end'] - exon['start'] + 1
-                exon_end_pos = transcript_pos + exon_len
-                
-                # Check if transcript_start falls in this exon
-                if transcript_pos <= transcript_start < exon_end_pos:
-                    genomic_start = exon['start'] + (transcript_start - transcript_pos)
-                
-                # Check if transcript_end falls in this exon
-                if transcript_pos <= transcript_end < exon_end_pos:
-                    genomic_end = exon['start'] + (transcript_end - transcript_pos)
-                    break
-                
-                transcript_pos = exon_end_pos
-        else:  # genomic_strand == '-'
-            # For negative strand, transcript coordinates start from 5' to 3', 
-            # but genomic coordinates go from 3' to 5' (opposite direction)
-            # So the first transcript coordinate maps to the genomic coordinate of the last exon's end
-            genomic_start = None
-            genomic_end = None
-            
-            # Calculate total transcript length to understand the mapping
-            total_len = sum(exon['end'] - exon['start'] + 1 for exon in exons)
-            
-            # For negative strand, we need to process exons in reverse order
-            # because the transcript starts from the last exon (3' end) genomically
-            transcript_pos = 0
-            for exon in reversed(exons):  # Process exons in reverse order for negative strand
-                exon_len = exon['end'] - exon['start'] + 1
-                exon_end_pos = transcript_pos + exon_len
-                
-                # Check if transcript_start falls in this exon
-                if transcript_pos <= transcript_start < exon_end_pos:
-                    # For negative strand, position from the start of the exon
-                    genomic_start = exon['end'] - (transcript_start - transcript_pos)
-                
-                # Check if transcript_end falls in this exon
-                if transcript_pos <= transcript_end < exon_end_pos:
-                    genomic_end = exon['end'] - (transcript_end - transcript_pos)
-                    break
-                
-                transcript_pos = exon_end_pos
-        
-        return seqname, genomic_start, genomic_end, genomic_strand
+
+        chrom, genomic_start, genomic_end = result
+        _, transcript_structure = self.gtf_parser.find_transcript(transcript_id)
+        genomic_strand = transcript_structure['strand'] if transcript_structure else None
+        return chrom, genomic_start, genomic_end, genomic_strand
+
         
 
     

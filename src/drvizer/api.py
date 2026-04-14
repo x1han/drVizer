@@ -8,9 +8,8 @@ from .gtf_parser import GTFParser
 from .bed_parser import BEDParser
 from .visualizer import visualize_gene_transcripts
 
-# Configure matplotlib for Illustrator compatibility
+
 def _configure_for_illustrator():
-    """Configure matplotlib settings for Adobe Illustrator compatibility."""
     matplotlib.rcParams['font.size'] = 12
     matplotlib.rcParams['pdf.fonttype'] = 42
     matplotlib.rcParams['font.sans-serif'] = "Arial"
@@ -230,20 +229,8 @@ class DrViz:
              show: bool = True,
              close: bool = False,
              **kwargs) -> plt.Figure:
-        """Plot one gene directly from the builder without explicitly calling build().
-
-        Args:
-            gene: Gene ID or gene name to plot
-            output: Path to save the figure (optional)
-            figsize: Figure size as (width, height) tuple
-            figfact: Factor to scale figure size as (width_factor, height_factor)
-            show: If True, display the figure (default True). Set False for batch/saving only.
-            close: If True, close the figure after saving
-            **kwargs: Additional arguments passed to visualizer
-
-        Returns:
-            matplotlib Figure object
-        """
+        """Plot one gene directly from the builder without explicitly calling build()."""
+        _configure_for_illustrator()
         parser = self.build()
         return parser.plot(gene, output=output, figsize=figsize, figfact=figfact, show=show, close=close, **kwargs)
 
@@ -263,21 +250,8 @@ class ReusableParser:
              show: bool = True,
              close: bool = False,
              **kwargs) -> plt.Figure:
-        """Plot one gene, or multiple genes on the same chromosome, from prepared data.
-
-        Args:
-            gene: Gene ID or gene name to plot
-            transcript_to_show: Optional transcript ID(s) to filter display
-            output: Path to save the figure (optional)
-            figsize: Figure size as (width, height) tuple
-            figfact: Factor to scale figure size as (width_factor, height_factor)
-            show: If True, display the figure (default True). Set False for batch/saving only.
-            close: If True, close the figure after saving
-            **kwargs: Additional arguments passed to visualizer
-
-        Returns:
-            matplotlib Figure object
-        """
+        """Plot one gene, or multiple genes on the same chromosome, from prepared data."""
+        _configure_for_illustrator()
         gene_data = self.data_source.get_transcript_data(gene, transcript_to_show=transcript_to_show)
 
         track_labels = ['Transcripts']
@@ -305,8 +279,10 @@ class ReusableParser:
 
         if show:
             plt.show()
+        else:
+            plt.close(fig)
 
-        if close:
+        if close and show:
             plt.close(fig)
 
         return fig

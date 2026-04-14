@@ -308,18 +308,93 @@ class GTFParser:
     def get_transcript_structure(self, gene_id, transcript_id):
         """
         Get the structure of a specific transcript.
-        
+
         Args:
             gene_id (str): The gene ID
             transcript_id (str): The transcript ID
-            
+
         Returns:
             dict: Transcript structure information
         """
         if gene_id in self.gene_transcripts and transcript_id in self.gene_transcripts[gene_id]:
             return self.gene_transcripts[gene_id][transcript_id]
         return None
-    
+
+    def find_transcript(self, transcript_id):
+        """
+        Find a transcript by ID across all genes.
+
+        Args:
+            transcript_id (str): The transcript ID to find
+
+        Returns:
+            tuple: (gene_id, transcript_structure) or (None, None) if not found
+        """
+        for gene_id, transcripts in self.gene_transcripts.items():
+            if transcript_id in transcripts:
+                return gene_id, transcripts[transcript_id]
+        return None, None
+
+    def convert_transcript_to_genomic(self, transcript_id, transcript_start, transcript_end):
+        """
+        Convert transcript coordinates to genomic coordinates.
+
+        Args:
+            transcript_id (str): The transcript ID
+            transcript_start (int): Start position in transcript coordinates
+            transcript_end (int): End position in transcript coordinates
+
+        Returns:
+            tuple: (chrom, genomic_start, genomic_end) or None if not found
+        """
+        _, transcript_structure = self.find_transcript(transcript_id)
+        if not transcript_structure:
+            return None
+
+        exons = sorted(transcript_structure['exons'], key=lambda x: x['start'])
+        genomic_strand = transcript_structure['strand']
+        seqname = transcript_structure['seqname']
+
+        genomic_start = None
+        genomic_end = None
+
+        if genomic_strand == '+':
+            transcript_pos = 0
+            for exon in exons:
+                exon_len = exon['end'] - exon['start'] + 1
+                exon_end_pos = transcript_pos + exon_len
+
+                if transcript_pos <= transcript_start < exon_end_pos:
+                    genomic_start = exon['start'] + (transcript_start - transcript_pos)
+
+                if transcript_pos <= transcript_end < exon_end_pos:
+                    genomic_end = exon['start'] + (transcript_end - transcript_pos)
+                    break
+
+                transcript_pos = exon_end_pos
+        else:
+            transcript_pos = 0
+            for exon in reversed(exons):
+                exon_len = exon['end'] - exon['start'] + 1
+                exon_end_pos = transcript_pos + exon_len
+
+                if transcript_pos <= transcript_start < exon_end_pos:
+                    genomic_start = exon['end'] - (transcript_start - transcript_pos)
+
+                if transcript_pos <= transcript_end < exon_end_pos:
+                    genomic_end = exon['end'] - (transcript_end - transcript_pos)
+                    break
+
+                transcript_pos = exon_end_pos
+
+        if genomic_start is None or genomic_end is None:
+            return None
+
+        if genomic_start > genomic_end:
+            genomic_start, genomic_end = genomic_end, genomic_start
+
+        return seqname, genomic_start, genomic_end
+
     def get_all_genes(self):
         """
         Get all genes in the GTF file(s).
