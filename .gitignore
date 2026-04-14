@@ -161,3 +161,4 @@ test_api_fix.py
 test_transcript_list.py
 plan/
 .worktrees/
+docs/superpowers/
