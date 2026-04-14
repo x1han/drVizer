@@ -12,6 +12,18 @@ import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import gzip
 
+try:
+    from ._cython_projection import project_segments as _project_segments_fast
+except ImportError:
+    _project_segments_fast = None
+
+try:
+    from ._cython_gtf import parse_attributes_fast as _parse_attributes_fast_impl
+    from ._cython_gtf import parse_gtf_chunk as _parse_gtf_chunk_impl
+except ImportError:
+    _parse_attributes_fast_impl = None
+    _parse_gtf_chunk_impl = None
+
 
 class GTFParser:
     """
@@ -377,30 +389,33 @@ class GTFParser:
 
         genomic_strand = transcript_structure['strand']
         seqname = transcript_structure['seqname']
-        segments = []
-
         interval_start = min(transcript_start, transcript_end)
         interval_end = max(transcript_start, transcript_end)
         if interval_start == interval_end:
             return seqname, genomic_strand, []
 
-        for exon, exon_t_start, exon_t_end in self._get_projection_exons(transcript_structure):
-            overlap_start = max(interval_start, exon_t_start)
-            overlap_end = min(interval_end, exon_t_end)
-            if overlap_start < overlap_end:
-                if genomic_strand == '+':
-                    genomic_start = exon['start'] + (overlap_start - exon_t_start)
-                    genomic_end = exon['start'] + (overlap_end - exon_t_start)
-                else:
-                    genomic_start = exon['end'] - (overlap_end - exon_t_start) + 1
-                    genomic_end = exon['end'] - (overlap_start - exon_t_start) + 1
+        projection_exons = self._get_projection_exons(transcript_structure)
+        if _project_segments_fast is not None:
+            segments = _project_segments_fast(projection_exons, genomic_strand, interval_start, interval_end)
+        else:
+            segments = []
+            for exon, exon_t_start, exon_t_end in projection_exons:
+                overlap_start = max(interval_start, exon_t_start)
+                overlap_end = min(interval_end, exon_t_end)
+                if overlap_start < overlap_end:
+                    if genomic_strand == '+':
+                        genomic_start = exon['start'] + (overlap_start - exon_t_start)
+                        genomic_end = exon['start'] + (overlap_end - exon_t_start)
+                    else:
+                        genomic_start = exon['end'] - (overlap_end - exon_t_start) + 1
+                        genomic_end = exon['end'] - (overlap_start - exon_t_start) + 1
 
-                if genomic_start > genomic_end:
-                    genomic_start, genomic_end = genomic_end, genomic_start
+                    if genomic_start > genomic_end:
+                        genomic_start, genomic_end = genomic_end, genomic_start
 
-                segments.append((genomic_start, genomic_end))
+                    segments.append((genomic_start, genomic_end))
 
-        segments.sort(key=lambda x: x[0])
+            segments.sort(key=lambda x: x[0])
         return seqname, genomic_strand, segments
 
     def convert_transcript_to_genomic(self, transcript_id, transcript_start, transcript_end):

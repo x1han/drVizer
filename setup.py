@@ -1,10 +1,29 @@
-from setuptools import setup, find_packages
+from pathlib import Path
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+from setuptools import Extension, find_packages, setup
 
-with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+ROOT = Path(__file__).parent
+long_description = (ROOT / "README.md").read_text(encoding="utf-8")
+requirements = [
+    line.strip()
+    for line in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    if line.strip() and not line.startswith("#")
+]
+
+extensions = [
+    Extension(
+        "drvizer._cython_projection",
+        ["src/drvizer/_cython_projection.pyx"],
+        extra_compile_args=["-std=c99"],
+    ),
+]
+
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    ext_modules = []
+else:
+    ext_modules = cythonize(extensions, language_level="3")
 
 setup(
     name="drvizer",
@@ -17,6 +36,7 @@ setup(
     url="https://github.com/yourusername/drvizer",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    ext_modules=ext_modules,
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
