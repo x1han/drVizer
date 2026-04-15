@@ -7,6 +7,7 @@ from typing import Union, List, Dict, Any
 from .gtf_parser import GTFParser
 from .bed_parser import BEDParser
 from .visualizer import visualize_gene_transcripts
+from ._track_build import prepare_tracks_parallel, TrackPreparationError
 
 
 def _configure_for_illustrator():
@@ -109,7 +110,7 @@ class DrViz:
 
     def __init__(self):
         self.gtf_parser = None
-        self.parsers = []
+        self.track_specs = []
         self.track_configs = []
 
     def load_gtf(self, gtf_files: Union[str, List[str]]) -> 'DrViz':
@@ -120,8 +121,8 @@ class DrViz:
         self.gtf_parser = GTFParser(gtf_files)
         self.gtf_parser.parse_gtf()
 
-        # Reset parsers and track configs for fresh start
-        self.parsers = []
+        # Reset tracks and track configs for fresh start
+        self.track_specs = []
         self.track_configs = []
 
         return self
@@ -136,7 +137,7 @@ class DrViz:
                       **kwargs) -> 'DrViz':
         """Add one BED-backed track to the current visualization builder."""
         if label is None:
-            label = f'Track_{len(self.parsers) + 1}'
+            label = f'Track_{len(self.track_specs) + 1}'
 
         files = [bed_files] if isinstance(bed_files, str) else bed_files
         colors = [color] * len(files) if isinstance(color, str) else color
@@ -145,24 +146,26 @@ class DrViz:
         if len(colors) != len(files) or len(alphas) != len(files):
             raise ValueError("Length of color and alpha lists must match number of BED files")
 
-        bp = BEDParser(
-            files,
-            track_label=label,
-            parser_type=parser_type,
-            y_axis_range=y_axis_range,
-            transcript_coord=transcript_coord,
-            gtf_parser=self.gtf_parser if transcript_coord else None
-        )
-        bp.color = colors[0] if len(set(colors)) == 1 else 'orange'
-        bp.alpha = alphas[0] if len(set(alphas)) == 1 else 0.8
-        bp.file_colors = colors
-        bp.file_alphas = alphas
-        bp.parse_bed()
-        self.parsers.append(bp)
+        resolved_color = colors[0] if len(set(colors)) == 1 else 'orange'
+        resolved_alpha = alphas[0] if len(set(alphas)) == 1 else 0.8
+
+        self.track_specs.append({
+            'kind': 'bed',
+            'files': files,
+            'label': label,
+            'color': resolved_color,
+            'alpha': resolved_alpha,
+            'file_colors': colors,
+            'file_alphas': alphas,
+            'parser_type': parser_type,
+            'y_axis_range': y_axis_range,
+            'transcript_coord': transcript_coord,
+            'parser_kwargs': dict(kwargs),
+        })
         self.track_configs.append({
             'label': label,
-            'color': bp.color,  # Use the actual valid color
-            'alpha': bp.alpha,
+            'color': resolved_color,
+            'alpha': resolved_alpha,
             'type': parser_type,
             'file_colors': colors,
             'file_alphas': alphas
@@ -191,17 +194,18 @@ class DrViz:
         if BAMParser is None:
             raise ImportError("BAM support requires pysam to be installed")
 
-        bmp = BAMParser(
-            bam_files,
-            track_label=label,
-            color=color,
-            aggregate_method=aggregate_method,
-            y_axis_range=y_axis_range,
-            transcript_coord=transcript_coord,
-            gtf_parser=self.gtf_parser if transcript_coord else None
-        )
-        bmp.alpha = alpha
-        self.parsers.append(bmp)
+        files = [bam_files] if isinstance(bam_files, str) else bam_files
+        self.track_specs.append({
+            'kind': 'bam',
+            'files': files,
+            'label': label,
+            'color': color,
+            'alpha': alpha,
+            'aggregate_method': aggregate_method,
+            'y_axis_range': y_axis_range,
+            'transcript_coord': transcript_coord,
+            'parser_kwargs': dict(kwargs),
+        })
         self.track_configs.append({
             'label': label,
             'color': color,
@@ -215,7 +219,14 @@ class DrViz:
         if self.gtf_parser is None:
             raise ValueError("GTF file must be loaded first using load_gtf()")
 
-        return ReusableParser(PreparedDataSource(self.gtf_parser, self.parsers), self.track_configs)
+        try:
+            prepared_tracks = prepare_tracks_parallel(self.track_specs, self.gtf_parser)
+        except TrackPreparationError as exc:
+            if exc.__cause__ is not None:
+                raise exc.__cause__
+            raise
+
+        return ReusableParser(PreparedDataSource(self.gtf_parser, prepared_tracks), self.track_configs)
 
     def get_transcript_data(self, gene: Union[str, List[str]], transcript_to_show: Union[str, List[str]] = None) -> Dict[str, Any]:
         """Return normalized plotting data for one gene or a same-chromosome gene list."""

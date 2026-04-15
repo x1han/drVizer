@@ -1,25 +1,115 @@
-"""
-BED Parser for drVizer
-======================
-
-This module provides functions to parse BED files and extract annotation elements 
-information for visualization along with gene transcripts.
-"""
-
-import pandas as pd
 from collections import defaultdict
 import gzip
+
+
+def _is_comment_or_blank(line):
+    return line.startswith('#') or line.strip() == ''
+
+
+def _parse_bed_fields(parts):
+    if len(parts) < 4:
+        return None
+
+    record = {}
+    record['chrom'] = parts[0]
+    try:
+        record['start'] = int(parts[1])
+        record['end'] = int(parts[2])
+    except (ValueError, IndexError):
+        return None
+
+    record['name'] = parts[3] if len(parts) > 3 else '.'
+
+    if len(parts) >= 5:
+        try:
+            record['score'] = float(parts[4])
+        except ValueError:
+            record['score'] = 0.0
+    else:
+        record['score'] = 0.0
+
+    record['strand'] = parts[5] if len(parts) > 5 else '.'
+
+    if len(parts) >= 7:
+        try:
+            record['thickStart'] = int(parts[6])
+        except ValueError:
+            record['thickStart'] = record['start']
+    else:
+        record['thickStart'] = record['start']
+
+    if len(parts) >= 8:
+        try:
+            record['thickEnd'] = int(parts[7])
+        except ValueError:
+            record['thickEnd'] = record['end']
+    else:
+        record['thickEnd'] = record['end']
+
+    record['itemRgb'] = parts[8] if len(parts) >= 9 else '0'
+    return record
+
+
+def _record_in_region(record, region):
+    if region is None:
+        return True
+
+    chrom, start, end = region
+    return not (
+        record['chrom'] != chrom or
+        record['end'] < start or
+        record['start'] > end
+    )
+
+
+def _open_text_file(bed_file_path, mode='rt'):
+    open_func = gzip.open if bed_file_path.endswith('.gz') else open
+    return open_func(bed_file_path, mode)
+
+
+def _normalize_bed_read_error(bed_file_path, error):
+    return ValueError(f"Error reading BED file {bed_file_path}: {error}")
+
+
+def parse_bed_records_python(bed_file_paths, region=None):
+    grouped = defaultdict(list)
+
+    for bed_file_path in bed_file_paths:
+        try:
+            with _open_text_file(bed_file_path, 'rt') as handle:
+                for line in handle:
+                    if _is_comment_or_blank(line):
+                        continue
+
+                    record = _parse_bed_fields(line.strip().split('\t'))
+                    if record is None or not _record_in_region(record, region):
+                        continue
+
+                    grouped[record['chrom']].append(record)
+        except Exception as e:
+            raise _normalize_bed_read_error(bed_file_path, e) from e
+
+    return grouped
+
+
+try:
+    from ._cython_bed import parse_bed_records
+except ImportError:
+    parse_bed_records = None
+    _CYTHON_BED_AVAILABLE = False
+else:
+    _CYTHON_BED_AVAILABLE = True
 
 
 class BEDParser:
     """
     A class to parse BED files and extract annotation information for visualization.
     """
-    
+
     def __init__(self, bed_file_path, transcript_coord=False, gtf_parser=None, parser_type='distribution', y_axis_range=None, track_label='Track'):
         """
         Initialize the BEDParser with the path to the BED file or list of BED files.
-        
+
         Args:
             bed_file_path (str or list): Path to the BED file or list of BED file paths
             transcript_coord (bool): Whether the BED file uses transcript coordinates instead of genomic coordinates
@@ -45,235 +135,161 @@ class BEDParser:
         self.file_alphas = None  # Store alphas for different files
         self.anno_data = defaultdict(list)
         self._parsed = False
-        
-
-
-
-
-
 
     def parse_bed(self, chrom=None, start=None, end=None):
         """
         Parse the BED file(s) and extract annotation information.
         If region (chrom, start, end) is provided, only parse annotations within that region.
-        
+
         Args:
             chrom (str, optional): Chromosome name to filter
             start (int, optional): Start position to filter
             end (int, optional): End position to filter
-            
+
         Returns:
             dict: Dictionary containing annotation information within the specified region or all annotations
         """
-        # Parse if not already parsed, or if a specific region is requested, or if we need to repopulate anno_data
-        # We need to re-parse if:
-        # 1. Not parsed yet
-        # 2. A specific region is requested (chrom, start, end are all provided)
-        # 3. anno_data is empty (might happen if previous parse was with a specific region)
-        if not self._parsed or (chrom and start and end) or len(self.anno_data) == 0:
-            # Clear existing data if we're parsing a specific region or if we need to re-parse everything
-            if (chrom and start and end) or not self._parsed:
+        if not self._parsed or (chrom is not None and start is not None and end is not None) or len(self.anno_data) == 0:
+            if (chrom is not None and start is not None and end is not None) or not self._parsed:
                 self.anno_data.clear()
             self._process_bed_file(chrom, start, end)
-            # Only mark as parsed if we're parsing all data (no specific region)
-            if not (chrom and start and end):
+            if not (chrom is not None and start is not None and end is not None):
                 self._parsed = True
-            
+
         return dict(self.anno_data)
-    
+
+    def prepare_track(self, gtf_parser):
+        """Prepare BED-backed track data after the builder has loaded the GTF."""
+        if self.transcript_coord:
+            self.gtf_parser = gtf_parser
+        self.parse_bed()
+        return self
+
     def _process_bed_file(self, chrom=None, start=None, end=None):
         """
         Process BED file and extract annotation information.
-        
+
         Args:
             chrom (str, optional): Chromosome name to filter
             start (int, optional): Start position to filter
             end (int, optional): End position to filter
         """
-        # Process each BED file
-        for bed_file_path in self.bed_file_paths:
-            # Determine if file is gzipped
-            open_func = gzip.open if bed_file_path.endswith('.gz') else open
-            
+        region = (chrom, start, end) if chrom is not None and start is not None and end is not None else None
+
+        if not self.transcript_coord:
+            grouped = self._parse_genomic_records(region)
+            for record_chrom, records in grouped.items():
+                self.anno_data[record_chrom].extend(records)
+            return
+
+        grouped = parse_bed_records_python(self.bed_file_paths, region)
+        for _, records in grouped.items():
+            for record in records:
+                if not self.gtf_parser:
+                    raise ValueError("gtf_parser is required when transcript_coord is True")
+
+                transcript_id = record['chrom']
+                result = self.gtf_parser.convert_transcript_to_genomic_segments(
+                    transcript_id, record['start'], record['end']
+                )
+                if not result:
+                    continue
+
+                chrom, genomic_strand, segments = result
+                for genomic_start, genomic_end in segments:
+                    segment_record = record.copy()
+                    segment_record['chrom'] = chrom
+                    segment_record['start'] = genomic_start
+                    segment_record['end'] = genomic_end
+                    segment_record['strand'] = genomic_strand
+                    self.anno_data[segment_record['chrom']].append(segment_record)
+
+    def _parse_genomic_records(self, region=None):
+        if _CYTHON_BED_AVAILABLE and parse_bed_records is not None:
             try:
-                with open_func(bed_file_path, 'rt') as f:
-                    for line in f:
-                        # Skip comment lines
-                        if line.startswith('#') or line.strip() == '':
-                            continue
-                        
-                        parts = line.strip().split('\t')
-                        # BED files need at least 3 required columns: chrom, start, end
-                        # Optional columns include: name (4th), score (5th), strand (6th)
-                        # These are at positions 0, 1, 2, 3, 4, 5 (0-based) or 1, 2, 3, 4, 5, 6 (1-based)
-                        if len(parts) < 4:  # Require at least chrom, start, end
-                            # Skip lines with insufficient columns
-                            continue
-                            
-                        # Parse the BED record with required column handling
-                        record = {}
-                        record['chrom'] = parts[0]
-                        try:
-                            record['start'] = int(parts[1])
-                            record['end'] = int(parts[2])
-                        except (ValueError, IndexError):
-                            # Skip records with invalid numeric values
-                            continue
-                            
-                        # Handle name (4th column, 0-based index 3)
-                        record['name'] = parts[3] if len(parts) > 3 else '.'
-                        
-                        # Handle score (5th column, 0-based index 4)
-                        if len(parts) >= 5:
-                            try:
-                                record['score'] = float(parts[4])
-                            except ValueError:
-                                record['score'] = 0.0
-                        else:
-                            record['score'] = 0.0
-                        
-                        # Strand is in the 6th column (0-based index 5)
-                        record['strand'] = parts[5] if len(parts) > 5 else '.'
-                            
-                        # Handle thickStart and thickEnd (7th and 8th columns)
-                        if len(parts) >= 7:
-                            try:
-                                record['thickStart'] = int(parts[6])
-                            except ValueError:
-                                record['thickStart'] = record['start']
-                        else:
-                            record['thickStart'] = record['start']
-                            
-                        if len(parts) >= 8:
-                            try:
-                                record['thickEnd'] = int(parts[7])
-                            except ValueError:
-                                record['thickEnd'] = record['end']
-                        else:
-                            record['thickEnd'] = record['end']
-                            
-                        # Handle itemRgb (9th column)
-                        if len(parts) >= 9:
-                            record['itemRgb'] = parts[8]
-                        else:
-                            record['itemRgb'] = '0'
-                        
-                        # Filter by region if specified
-                        if chrom and start and end:
-                            if (record['chrom'] != chrom or 
-                                record['end'] < start or 
-                                record['start'] > end):
-                                continue
-                        
-                        # If transcript coordinates are used, convert to genomic coordinates
-                        if self.transcript_coord:
-                            if not self.gtf_parser:
-                                raise ValueError("gtf_parser is required when transcript_coord is True")
-
-                            transcript_id = record['chrom']
-                            result = self.gtf_parser.convert_transcript_to_genomic_segments(
-                                transcript_id, record['start'], record['end']
-                            )
-                            if not result:
-                                continue
-
-                            chrom, genomic_strand, segments = result
-                            for genomic_start, genomic_end in segments:
-                                segment_record = record.copy()
-                                segment_record['chrom'] = chrom
-                                segment_record['start'] = genomic_start
-                                segment_record['end'] = genomic_end
-                                segment_record['strand'] = genomic_strand
-                                self.anno_data[segment_record['chrom']].append(segment_record)
-                        else:
-                            # Store annotation data grouped by chromosome
-                            self.anno_data[record['chrom']].append(record)
-                    
+                return parse_bed_records(self.bed_file_paths, region)
             except Exception as e:
-                raise ValueError(f"Error reading BED file {bed_file_path}: {e}")
-    
+                if isinstance(e, ValueError) and str(e).startswith("Error reading BED file "):
+                    raise
+                bed_file_path = self.bed_file_paths[0] if len(self.bed_file_paths) == 1 else self.bed_file_paths
+                raise _normalize_bed_read_error(bed_file_path, e) from e
+        return parse_bed_records_python(self.bed_file_paths, region)
+
     def get_anno_in_region(self, chrom, start, end):
         """
         Get annotation elements within a specific genomic region.
-        
+
         Args:
             chrom (str): Chromosome name
             start (int): Start position
             end (int): End position
-            
+
         Returns:
             list: List of annotation elements within the specified region
         """
-        # Parse the BED file if not already parsed
         if not self._parsed:
             self.parse_bed()
-            
-        # Filter annotations within the region
+
         anno_in_region = []
         if chrom in self.anno_data:
             for anno in self.anno_data[chrom]:
-                # Check if annotation overlaps with the region
                 if anno['end'] >= start and anno['start'] <= end:
                     anno_in_region.append(anno)
-                    
+
         return anno_in_region
-    
+
     def get_all_chromosomes(self):
         """
         Get all chromosomes in the BED file.
-        
+
         Returns:
             list: List of chromosome names
         """
         if not self._parsed:
             self.parse_bed()
         return list(self.anno_data.keys())
-    
+
     def get_grouped_anno_in_region(self, chrom, start, end):
         """
         Get annotation elements within a specific genomic region, grouped by name.
-        
+
         Args:
             chrom (str): Chromosome name
             start (int): Start position
             end (int): End position
-            
+
         Returns:
             dict: Dictionary with annotation names as keys and list of annotation elements as values
         """
-        # Parse the BED file if not already parsed
         if not self._parsed:
             self.parse_bed()
-            
-        # Group annotations by name within the region
+
         grouped_anno = {}
         if chrom in self.anno_data:
             for anno in self.anno_data[chrom]:
-                # Ensure start <= end for proper region checking
                 anno_start, anno_end = anno['start'], anno['end']
                 if anno_start > anno_end:
                     anno_start, anno_end = anno_end, anno_start
-                
-                # Check if annotation overlaps with the region
+
                 if anno_end >= start and anno_start <= end:
                     name = anno['name']
                     if name not in grouped_anno:
                         grouped_anno[name] = []
                     grouped_anno[name].append(anno)
-                    
+
         return grouped_anno
 
 
 def parse_bed_for_region(bed_file_path, chrom, start, end):
     """
     Parse BED file and extract annotation information for a specific genomic region.
-    
+
     Args:
         bed_file_path (str): Path to the BED file
         chrom (str): Chromosome name
         start (int): Start position
         end (int): End position
-        
+
     Returns:
         list: List of annotation elements within the specified region
     """
@@ -284,10 +300,10 @@ def parse_bed_for_region(bed_file_path, chrom, start, end):
 def parse_bed_all(bed_file_path):
     """
     Parse BED file and extract all annotation information.
-    
+
     Args:
         bed_file_path (str): Path to the BED file
-        
+
     Returns:
         dict: Dictionary of all annotation elements grouped by chromosome
     """

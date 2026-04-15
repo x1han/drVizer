@@ -36,6 +36,30 @@ def tmp_gtf_second(tmp_path):
 
 
 @pytest.fixture
+def tmp_bed(tmp_path):
+    path = tmp_path / "test.bed"
+    path.write_text(textwrap.dedent(
+        """\
+        chr1	105	120	peak1	10	+
+        chr1	205	220	peak2	5	+
+        """
+    ))
+    return path
+
+
+@pytest.fixture
+def tmp_bed_second(tmp_path):
+    path = tmp_path / "test_second.bed"
+    path.write_text(textwrap.dedent(
+        """\
+        chr1	305	320	peak3	8	+
+        chr1	405	420	peak4	4	+
+        """
+    ))
+    return path
+
+
+@pytest.fixture
 def parsed_gtf(tmp_gtf):
     parser = GTFParser(str(tmp_gtf))
     parser.parse_gtf()
