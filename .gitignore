@@ -155,10 +155,5 @@ results/
 # Log files
 *.log
 logs/
-# Local-only repository files
-CLAUDE.md
-test_api_fix.py
-test_transcript_list.py
-plan/
-.worktrees/
-docs/superpowers/
+# Generated Cython C sources
+src/drvizer/_cython_*.c
