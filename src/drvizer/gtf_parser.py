@@ -6,10 +6,8 @@ This module provides functions to parse GTF files and extract transcript informa
 for a specific gene, which can then be used for visualization.
 """
 
-import pandas as pd
 from collections import defaultdict
 import re
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import gzip
 
 try:
@@ -107,18 +105,15 @@ class GTFParser:
     
     def _process_gtf_file_optimized(self, gtf_file_path, gene_id=None):
         """
-        Process GTF file using optimized chunked approach with parallel processing.
-        
+        Process GTF file using optimized chunked approach.
+
         Args:
             gtf_file_path (str): Path to the GTF file
             gene_id (str, optional): Specific gene ID to parse
         """
-        # Define column names for GTF file
-        columns = ['seqname', 'source', 'feature', 'start', 'end', 'score', 'strand', 'frame', 'attribute']
-        
         # Determine if file is gzipped
         open_func = gzip.open if gtf_file_path.endswith('.gz') else open
-        
+
         # Process file in chunks for memory efficiency
         chunk_size = 10000
         chunk = []
@@ -134,148 +129,123 @@ class GTFParser:
                     
                     # Process chunk when it reaches the specified size
                     if len(chunk) >= chunk_size:
-                        self._process_chunk(chunk, columns, gene_id)
+                        self._process_chunk(chunk, gene_id)
                         chunk = []  # Reset chunk
-                
+
                 # Process remaining lines in final chunk
                 if chunk:
-                    self._process_chunk(chunk, columns, gene_id)
+                    self._process_chunk(chunk, gene_id)
                     
         except Exception as e:
             raise ValueError(f"Error reading GTF file {gtf_file_path}: {e}")
     
-    def _process_chunk(self, chunk_lines, columns, gene_id=None):
+    def _process_chunk(self, chunk_lines, gene_id=None):
         """
         Process a chunk of GTF lines.
-        
+
         Args:
             chunk_lines (list): List of GTF file lines
-            columns (list): Column names for GTF format
             gene_id (str, optional): Specific gene ID to parse
         """
-        # Parse lines into a temporary dataframe for this chunk
-        chunk_data = []
-        for line in chunk_lines:
-            parts = line.strip().split('\t')
-            if len(parts) >= 9 and (parts[2] == 'exon' or parts[2] == 'CDS'):  # Process exon and CDS features
-                chunk_data.append(parts[:8] + [parts[8]])  # Ensure we have 9 columns
-        
-        if not chunk_data:
+        chunk_rows = _parse_gtf_chunk_impl(chunk_lines) if _parse_gtf_chunk_impl is not None else None
+        if chunk_rows is not None:
+            iterable_rows = chunk_rows
+        else:
+            iterable_rows = []
+            for line in chunk_lines:
+                parts = line.strip().split('\t')
+                if len(parts) >= 9 and (parts[2] == 'exon' or parts[2] == 'CDS'):
+                    iterable_rows.append((parts[0], parts[2], int(parts[3]), int(parts[4]), parts[6], parts[8]))
+
+        if not iterable_rows:
             return
-            
-        # Create DataFrame for this chunk
-        try:
-            gtf_data = pd.DataFrame(chunk_data, columns=columns)
-            gtf_data['start'] = gtf_data['start'].astype(int)
-            gtf_data['end'] = gtf_data['end'].astype(int)
-        except Exception as e:
-            # If there's an error parsing the chunk, skip it
-            return
-            
-        # Process each row
-        for _, row in gtf_data.iterrows():
-            # Only process exon and CDS features
-            if row['feature'] not in ['exon', 'CDS']:
-                continue
-                
-            # Parse attributes using optimized function
-            attributes = self._parse_attributes_fast(row['attribute'])
-            
-            # Extract gene and transcript IDs
+
+        for seqname, feature, start_i, end_i, strand, attribute_string in iterable_rows:
+            attributes = self._parse_attributes_fast(attribute_string)
+
             gene_id_row = attributes.get('gene_id', None)
             transcript_id = attributes.get('transcript_id', None)
             gene_name = attributes.get('gene_name', None)
-            
+
             if not gene_id_row or not transcript_id:
                 continue
-                
-            # If a specific gene is requested, only process that gene
+
             if gene_id and gene_id_row != gene_id:
                 continue
-                
-            # Check if this transcript was already in previous files
+
             transcript_key = f"{gene_id_row}:{transcript_id}"
             if transcript_key in self._transcripts_from_previous_files:
-                continue  # Skip transcripts from previous files
-                
-            # Store gene name mapping
+                continue
+
             if gene_name and gene_id_row:
                 self.gene_name_to_id[gene_name] = gene_id_row
-                
-            # Store gene information (only if not already stored)
+
             if gene_id_row not in self.gene_info:
                 self.gene_info[gene_id_row] = {
-                    'seqname': row['seqname'],
-                    'strand': row['strand'],
+                    'seqname': seqname,
+                    'strand': strand,
                     'transcripts': []
                 }
-                
-            # Add transcript to gene's transcript list (avoid duplicates)
+
             if transcript_id not in self.gene_info[gene_id_row]['transcripts']:
                 self.gene_info[gene_id_row]['transcripts'].append(transcript_id)
-                
-            # Initialize transcript structure if not already present
+
             if gene_id_row not in self.gene_transcripts:
                 self.gene_transcripts[gene_id_row] = {}
-                
-            # Initialize transcript structure if not already present
+
             if transcript_id not in self.gene_transcripts[gene_id_row]:
                 self.gene_transcripts[gene_id_row][transcript_id] = {
                     'exons': [],
-                    'cds': [],  # Add CDS information
-                    'strand': row['strand'],
-                    'seqname': row['seqname']
+                    'cds': [],
+                    'strand': strand,
+                    'seqname': seqname
                 }
                 self.transcript_to_gene[transcript_id] = gene_id_row
-                
-            # Add feature information based on type
-            if row['feature'] == 'exon':
-                # Add exon information
+
+            if feature == 'exon':
                 new_exon = {
-                    'start': row['start'],
-                    'end': row['end'],
+                    'start': start_i,
+                    'end': end_i,
                     'number': len(self.gene_transcripts[gene_id_row][transcript_id]['exons']) + 1
                 }
-                
-                # Check if exon already exists to avoid duplicates
+
                 exon_exists = False
                 for existing_exon in self.gene_transcripts[gene_id_row][transcript_id]['exons']:
-                    if existing_exon['start'] == row['start'] and existing_exon['end'] == row['end']:
+                    if existing_exon['start'] == start_i and existing_exon['end'] == end_i:
                         exon_exists = True
                         break
-                        
+
                 if not exon_exists:
                     self.gene_transcripts[gene_id_row][transcript_id]['exons'].append(new_exon)
-            elif row['feature'] == 'CDS':
-                # Add CDS information
+            elif feature == 'CDS':
                 new_cds = {
-                    'start': row['start'],
-                    'end': row['end']
+                    'start': start_i,
+                    'end': end_i
                 }
-                
-                # Check if CDS already exists to avoid duplicates
+
                 cds_exists = False
                 for existing_cds in self.gene_transcripts[gene_id_row][transcript_id]['cds']:
-                    if existing_cds['start'] == row['start'] and existing_cds['end'] == row['end']:
+                    if existing_cds['start'] == start_i and existing_cds['end'] == end_i:
                         cds_exists = True
                         break
-                        
+
                 if not cds_exists:
                     self.gene_transcripts[gene_id_row][transcript_id]['cds'].append(new_cds)
-                
+
     def _parse_attributes_fast(self, attribute_string):
         """
         Fast parsing of the attribute column of a GTF file.
-        
+
         Args:
             attribute_string (str): The attribute string from a GTF row
-            
+
         Returns:
             dict: Dictionary of attributes
         """
+        if _parse_attributes_fast_impl is not None:
+            return _parse_attributes_fast_impl(attribute_string)
+
         attributes = {}
-        # Use regex for faster parsing
-        # Match key-value pairs like gene_id "ENSG00000123456";
         pattern = r'(\w+) "([^"]*)";?'
         matches = re.findall(pattern, attribute_string)
         for key, value in matches:

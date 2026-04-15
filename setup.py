@@ -16,6 +16,16 @@ extensions = [
         ["src/drvizer/_cython_projection.pyx"],
         extra_compile_args=["-std=c99"],
     ),
+    Extension(
+        "drvizer._cython_gtf",
+        ["src/drvizer/_cython_gtf.pyx"],
+        extra_compile_args=["-std=c99"],
+    ),
+    Extension(
+        "drvizer._cython_bed",
+        ["src/drvizer/_cython_bed.pyx"],
+        extra_compile_args=["-std=c99"],
+    ),
 ]
 
 try:

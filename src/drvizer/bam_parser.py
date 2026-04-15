@@ -2,6 +2,13 @@ import pysam
 import numpy as np
 import os
 
+from drvizer._parallel import (
+    ParallelCoverageError,
+    aggregate_region_coverages_parallel,
+    compute_region_coverage,
+)
+
+
 class BAMParser:
     """
     BAM Parser for drVizer.
@@ -44,20 +51,15 @@ class BAMParser:
         if region_len <= 0:
             return np.array([]), np.array([])
 
-        total_coverage = np.zeros(region_len, dtype=np.int32)
-
-        for path in self.bam_paths:
-            with pysam.AlignmentFile(path, "rb") as sam:
-                for read in sam.fetch(chrom, start, end):
-                    if self.contained_only:
-                        if read.reference_start < start or read.reference_end > end:
-                            continue
-
-                    for b_start, b_end in read.get_blocks():
-                        idx_s = max(0, b_start - start)
-                        idx_e = min(region_len, b_end - start)
-                        if idx_s < idx_e:
-                            total_coverage[idx_s:idx_e] += 1
+        if len(self.bam_paths) > 1:
+            try:
+                total_coverage = aggregate_region_coverages_parallel(
+                    self.bam_paths, chrom, start, end, self.contained_only
+                )
+            except ParallelCoverageError:
+                total_coverage = self._get_coverage_in_region_serial(chrom, start, end)
+        else:
+            total_coverage = self._get_coverage_in_region_serial(chrom, start, end)
 
         if self.aggregate_method == 'mean' and len(self.bam_paths) > 1:
             total_coverage = total_coverage.astype(np.float64) / len(self.bam_paths)
@@ -72,6 +74,16 @@ class BAMParser:
             return x_binned, coverage_binned
 
         return x, total_coverage
+
+    def _get_coverage_in_region_serial(self, chrom, start, end):
+        total_coverage = np.zeros(end - start, dtype=np.int32)
+
+        for path in self.bam_paths:
+            total_coverage += compute_region_coverage(
+                path, chrom, start, end, self.contained_only
+            )
+
+        return total_coverage
 
     def get_coverage_for_transcripts(self, gene_identifier, target_bins=2000):
         """
