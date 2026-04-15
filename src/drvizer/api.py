@@ -16,6 +16,23 @@ def _configure_for_illustrator():
     matplotlib.rcParams['font.sans-serif'] = "Arial"
     matplotlib.rcParams['font.family'] = 'Arial'
 
+
+def _make_unique_label(label, existing_labels):
+    if label not in existing_labels:
+        return label
+
+    suffix = 1
+    while True:
+        candidate = f"{label}.{suffix}"
+        if candidate not in existing_labels:
+            return candidate
+        suffix += 1
+
+
+def _register_track_spec(track_specs, track_configs, spec, config):
+    track_specs.append(spec)
+    track_configs.append(config)
+
 _configure_for_illustrator()
 
 try:
@@ -138,6 +155,7 @@ class DrViz:
         """Add one BED-backed track to the current visualization builder."""
         if label is None:
             label = f'Track_{len(self.track_specs) + 1}'
+        label = _make_unique_label(label, {spec['label'] for spec in self.track_specs})
 
         files = [bed_files] if isinstance(bed_files, str) else bed_files
         colors = [color] * len(files) if isinstance(color, str) else color
@@ -149,27 +167,31 @@ class DrViz:
         resolved_color = colors[0] if len(set(colors)) == 1 else 'orange'
         resolved_alpha = alphas[0] if len(set(alphas)) == 1 else 0.8
 
-        self.track_specs.append({
-            'kind': 'bed',
-            'files': files,
-            'label': label,
-            'color': resolved_color,
-            'alpha': resolved_alpha,
-            'file_colors': colors,
-            'file_alphas': alphas,
-            'parser_type': parser_type,
-            'y_axis_range': y_axis_range,
-            'transcript_coord': transcript_coord,
-            'parser_kwargs': dict(kwargs),
-        })
-        self.track_configs.append({
-            'label': label,
-            'color': resolved_color,
-            'alpha': resolved_alpha,
-            'type': parser_type,
-            'file_colors': colors,
-            'file_alphas': alphas
-        })
+        _register_track_spec(
+            self.track_specs,
+            self.track_configs,
+            {
+                'kind': 'bed',
+                'files': files,
+                'label': label,
+                'color': resolved_color,
+                'alpha': resolved_alpha,
+                'file_colors': colors,
+                'file_alphas': alphas,
+                'parser_type': parser_type,
+                'y_axis_range': y_axis_range,
+                'transcript_coord': transcript_coord,
+                'parser_kwargs': dict(kwargs),
+            },
+            {
+                'label': label,
+                'color': resolved_color,
+                'alpha': resolved_alpha,
+                'type': parser_type,
+                'file_colors': colors,
+                'file_alphas': alphas,
+            },
+        )
         return self
 
     def add_bam_track(self, bam_files: Union[str, List[str]],
@@ -195,23 +217,28 @@ class DrViz:
             raise ImportError("BAM support requires pysam to be installed")
 
         files = [bam_files] if isinstance(bam_files, str) else bam_files
-        self.track_specs.append({
-            'kind': 'bam',
-            'files': files,
-            'label': label,
-            'color': color,
-            'alpha': alpha,
-            'aggregate_method': aggregate_method,
-            'y_axis_range': y_axis_range,
-            'transcript_coord': transcript_coord,
-            'parser_kwargs': dict(kwargs),
-        })
-        self.track_configs.append({
-            'label': label,
-            'color': color,
-            'alpha': alpha,
-            'type': 'coverage'
-        })
+        label = _make_unique_label(label, {spec['label'] for spec in self.track_specs})
+        _register_track_spec(
+            self.track_specs,
+            self.track_configs,
+            {
+                'kind': 'bam',
+                'files': files,
+                'label': label,
+                'color': color,
+                'alpha': alpha,
+                'aggregate_method': aggregate_method,
+                'y_axis_range': y_axis_range,
+                'transcript_coord': transcript_coord,
+                'parser_kwargs': dict(kwargs),
+            },
+            {
+                'label': label,
+                'color': color,
+                'alpha': alpha,
+                'type': 'coverage',
+            },
+        )
         return self
 
     def build(self) -> 'ReusableParser':
@@ -226,7 +253,19 @@ class DrViz:
                 raise exc.__cause__
             raise
 
-        return ReusableParser(PreparedDataSource(self.gtf_parser, prepared_tracks), self.track_configs)
+        track_by_label = {getattr(track, 'track_label', None): track for track in prepared_tracks}
+        ordered_tracks = []
+        for spec in self.track_specs:
+            label = spec["label"]
+            if label not in track_by_label:
+                raise RuntimeError(f"Prepared track missing for label {label}")
+            ordered_tracks.append(track_by_label.pop(label))
+        if track_by_label:
+            raise RuntimeError(
+                f"Unexpected prepared tracks returned: {', '.join(sorted(str(label) for label in track_by_label))}"
+            )
+
+        return ReusableParser(PreparedDataSource(self.gtf_parser, ordered_tracks), self.track_configs)
 
     def get_transcript_data(self, gene: Union[str, List[str]], transcript_to_show: Union[str, List[str]] = None) -> Dict[str, Any]:
         """Return normalized plotting data for one gene or a same-chromosome gene list."""

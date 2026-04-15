@@ -1,40 +1,91 @@
 from collections import defaultdict
 import gzip
 
+from libc.stdlib cimport strtod, strtol
+from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_GET_SIZE
 
-def _parse_optional_int(value, default_value):
-    try:
-        return int(value)
-    except ValueError:
+
+cdef inline int _parse_optional_int_text(const char* text, int text_len, int default_value):
+    cdef char* endptr
+    cdef long value
+    if text_len == 0:
         return default_value
-
-
-def _parse_optional_float(value, default_value):
-    try:
-        return float(value)
-    except ValueError:
+    value = strtol(text, &endptr, 10)
+    if endptr == text or endptr[0] != 0:
         return default_value
+    return <int>value
 
 
-def _parse_record(parts):
-    if len(parts) < 4:
+cdef inline object _parse_optional_float_text(const char* text, int text_len, object default_value):
+    cdef char* endptr
+    cdef double value
+    if text_len == 0:
+        return default_value
+    value = strtod(text, &endptr)
+    if endptr == text or endptr[0] != 0:
+        return default_value
+    return value
+
+
+cdef inline object _decode_field(bytes line_bytes, Py_ssize_t start, Py_ssize_t end):
+    if end <= start:
+        return ''
+    return (<bytes>line_bytes[start:end]).decode('utf-8')
+
+
+cdef inline object _build_record_from_line(bytes line_bytes):
+    cdef const char* buffer = PyBytes_AS_STRING(line_bytes)
+    cdef Py_ssize_t length = PyBytes_GET_SIZE(line_bytes)
+    cdef Py_ssize_t field_start = 0
+    cdef Py_ssize_t idx
+    cdef Py_ssize_t field_count = 0
+    cdef Py_ssize_t starts[9]
+    cdef Py_ssize_t ends[9]
+    cdef object chrom
+    cdef object name
+    cdef object strand
+    cdef object item_rgb
+    cdef object score
+    cdef int start
+    cdef int end
+    cdef int thick_start
+    cdef int thick_end
+
+    cdef char tab = b'\t'
+
+    for idx in range(length):
+        if buffer[idx] == tab:
+            if field_count < 9:
+                starts[field_count] = field_start
+                ends[field_count] = idx
+            field_count += 1
+            field_start = idx + 1
+
+    if field_count < 9:
+        starts[field_count] = field_start
+        ends[field_count] = length
+    field_count += 1
+
+    if field_count < 4:
         return None
 
-    try:
-        start = int(parts[1])
-        end = int(parts[2])
-    except (ValueError, IndexError):
+    start = _parse_optional_int_text(buffer + starts[1], <int>(ends[1] - starts[1]), -1)
+    if start < 0:
+        return None
+    end = _parse_optional_int_text(buffer + starts[2], <int>(ends[2] - starts[2]), -1)
+    if end < 0:
         return None
 
-    name = parts[3] if len(parts) > 3 else '.'
-    score = _parse_optional_float(parts[4], 0.0) if len(parts) >= 5 else 0.0
-    strand = parts[5] if len(parts) > 5 else '.'
-    thick_start = _parse_optional_int(parts[6], start) if len(parts) >= 7 else start
-    thick_end = _parse_optional_int(parts[7], end) if len(parts) >= 8 else end
-    item_rgb = parts[8] if len(parts) >= 9 else '0'
+    chrom = _decode_field(line_bytes, starts[0], ends[0])
+    name = _decode_field(line_bytes, starts[3], ends[3]) if field_count > 3 else '.'
+    score = _parse_optional_float_text(buffer + starts[4], <int>(ends[4] - starts[4]), 0.0) if field_count >= 5 else 0.0
+    strand = _decode_field(line_bytes, starts[5], ends[5]) if field_count > 5 else '.'
+    thick_start = _parse_optional_int_text(buffer + starts[6], <int>(ends[6] - starts[6]), start) if field_count >= 7 else start
+    thick_end = _parse_optional_int_text(buffer + starts[7], <int>(ends[7] - starts[7]), end) if field_count >= 8 else end
+    item_rgb = _decode_field(line_bytes, starts[8], ends[8]) if field_count >= 9 else '0'
 
     return {
-        'chrom': parts[0],
+        'chrom': chrom,
         'start': start,
         'end': end,
         'name': name,
@@ -59,18 +110,23 @@ def _record_in_region(record, region):
 
 
 def parse_bed_records(bed_file_paths, region=None):
-    grouped = defaultdict(list)
+    cdef dict grouped = defaultdict(list)
+    cdef object bed_file_path
+    cdef object handle
+    cdef object raw_line
+    cdef bytes line_bytes
+    cdef object record
 
     for bed_file_path in bed_file_paths:
-        open_func = gzip.open if bed_file_path.endswith('.gz') else open
-
         try:
-            with open_func(bed_file_path, 'rt') as handle:
+            handle = gzip.open(bed_file_path, 'rb') if bed_file_path.endswith('.gz') else open(bed_file_path, 'rb')
+            with handle:
                 for raw_line in handle:
-                    if raw_line.startswith('#') or raw_line.strip() == '':
+                    line_bytes = raw_line.strip()
+                    if not line_bytes or line_bytes.startswith(b'#'):
                         continue
 
-                    record = _parse_record(raw_line.strip().split('\t'))
+                    record = _build_record_from_line(line_bytes)
                     if record is None or not _record_in_region(record, region):
                         continue
 

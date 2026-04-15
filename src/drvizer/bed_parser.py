@@ -211,8 +211,7 @@ class BEDParser:
             except Exception as e:
                 if isinstance(e, ValueError) and str(e).startswith("Error reading BED file "):
                     raise
-                bed_file_path = self.bed_file_paths[0] if len(self.bed_file_paths) == 1 else self.bed_file_paths
-                raise _normalize_bed_read_error(bed_file_path, e) from e
+                return parse_bed_records_python(self.bed_file_paths, region)
         return parse_bed_records_python(self.bed_file_paths, region)
 
     def get_anno_in_region(self, chrom, start, end):

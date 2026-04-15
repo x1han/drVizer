@@ -81,6 +81,69 @@ def test_parse_bed_cython_fast_path_matches_python_region_filter(tmp_bed, tmp_be
     assert actual == expected
 
 
+def test_parse_bed_cython_fast_path_falls_back_when_extension_raises(tmp_bed, monkeypatch):
+    calls = []
+
+    def broken_fast_path(*args, **kwargs):
+        raise RuntimeError("simulated cython failure")
+
+    def fake_python_parse(bed_file_paths, region=None):
+        calls.append((tuple(bed_file_paths), region))
+        return {
+            "chr1": [
+                {
+                    "chrom": "chr1",
+                    "start": 105,
+                    "end": 120,
+                    "name": "peak1",
+                    "score": 10.0,
+                    "strand": "+",
+                    "thickStart": 105,
+                    "thickEnd": 120,
+                    "itemRgb": "0",
+                }
+            ]
+        }
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", True, raising=False)
+    monkeypatch.setattr("drvizer.bed_parser.parse_bed_records", broken_fast_path, raising=False)
+    monkeypatch.setattr("drvizer.bed_parser.parse_bed_records_python", fake_python_parse)
+
+    parser = BEDParser(str(tmp_bed))
+    result = parser.parse_bed()
+
+    assert calls == [((str(tmp_bed),), None)]
+    assert result["chr1"][0]["name"] == "peak1"
+
+
+def test_parse_bed_cython_fast_path_preserves_invalid_numeric_fallbacks(tmp_path, monkeypatch):
+    bed_path = tmp_path / "invalid_numeric_defaults.bed"
+    bed_path.write_text("chr1\t10\t20\tpeak\tnot-a-float\t+\tbad-start\tbad-end\t255,0,0\n")
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", False)
+    expected = BEDParser(str(bed_path)).parse_bed()
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", True)
+    actual = BEDParser(str(bed_path)).parse_bed()
+
+    assert actual == expected
+    assert actual == {
+        "chr1": [
+            {
+                "chrom": "chr1",
+                "start": 10,
+                "end": 20,
+                "name": "peak",
+                "score": 0.0,
+                "strand": "+",
+                "thickStart": 10,
+                "thickEnd": 20,
+                "itemRgb": "255,0,0",
+            }
+        ]
+    }
+
+
 def test_transcript_coordinate_bed_uses_python_parser_even_when_cython_available(parsed_gtf, tmp_path, monkeypatch):
     bed_path = tmp_path / "transcript_coords.bed"
     bed_path.write_text("TX1\t10\t70\tpeak_tx\t7\t+\n")
@@ -149,8 +212,6 @@ def test_cython_and_python_paths_report_same_gzip_decode_error_message(tmp_path,
     parser = BEDParser(str(bad_gzip_path))
     with pytest.raises(ValueError, match=rf"^Error reading BED file {Path(str(bad_gzip_path))}: .*Not a gzipped file"):
         parser.parse_bed()
-
-
 
 
 def test_parse_bed_region_filter_accepts_zero_start(tmp_path, monkeypatch):
