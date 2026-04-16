@@ -33,6 +33,34 @@ def _register_track_spec(track_specs, track_configs, spec, config):
     track_specs.append(spec)
     track_configs.append(config)
 
+
+def _validate_split_by_transcript(split_by_transcript, transcript_coord):
+    if split_by_transcript not in (None, 'nc', 'cn'):
+        raise ValueError("split_by_transcript must be one of None, 'nc', or 'cn'")
+    if split_by_transcript is not None and not transcript_coord:
+        raise ValueError("split_by_transcript requires transcript_coord=True")
+
+
+def _build_right_label_groups(prepared_tracks):
+    groups = []
+    start_index = 0
+    while start_index < len(prepared_tracks):
+        transcript_id = prepared_tracks[start_index].get('transcript_id')
+        end_index = start_index
+        while (
+            end_index + 1 < len(prepared_tracks)
+            and prepared_tracks[end_index + 1].get('transcript_id') == transcript_id
+        ):
+            end_index += 1
+        groups.append({
+            'transcript_id': transcript_id,
+            'start_index': start_index,
+            'end_index': end_index,
+        })
+        start_index = end_index + 1
+    return groups
+
+
 _configure_for_illustrator()
 
 try:
@@ -47,6 +75,55 @@ class PreparedDataSource:
     def __init__(self, gtf_parser, tracks=None):
         self.gtf_parser = gtf_parser
         self.tracks = tracks or []
+
+    def _build_track_entry(self, track, track_kind, track_data, track_index, transcript_id=None):
+        entry = {
+            'kind': track_kind,
+            'data': track_data,
+            'label': getattr(track, 'track_label', f'Track {track_index + 1}'),
+            'color': getattr(track, 'color', 'orange'),
+            'alpha': getattr(track, 'alpha', 0.8),
+            'y_axis_range': getattr(track, 'y_axis_range', None),
+            'file_colors': getattr(track, 'file_colors', None),
+            'file_alphas': getattr(track, 'file_alphas', None),
+        }
+        if transcript_id is not None:
+            entry['transcript_id'] = transcript_id
+        return entry
+
+    def _expand_split_tracks(self, split_mode, transcript_ids, split_track_specs):
+        prepared_tracks = []
+        if split_mode == 'nc':
+            for transcript_id in transcript_ids:
+                for track_index, track, all_track_data in split_track_specs:
+                    if transcript_id not in all_track_data:
+                        continue
+                    track_data = all_track_data[transcript_id]
+                    prepared_tracks.append(
+                        self._build_track_entry(
+                            track,
+                            'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
+                            {'x': track_data['x'], 'y': track_data['y']} if hasattr(track, 'get_coverage_by_transcript') else track_data,
+                            track_index,
+                            transcript_id,
+                        )
+                    )
+        else:
+            for track_index, track, all_track_data in split_track_specs:
+                for transcript_id in transcript_ids:
+                    if transcript_id not in all_track_data:
+                        continue
+                    track_data = all_track_data[transcript_id]
+                    prepared_tracks.append(
+                        self._build_track_entry(
+                            track,
+                            'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
+                            {'x': track_data['x'], 'y': track_data['y']} if hasattr(track, 'get_coverage_by_transcript') else track_data,
+                            track_index,
+                            transcript_id,
+                        )
+                    )
+        return prepared_tracks
 
     def get_transcript_data(self, gene_identifier, transcript_to_show=None):
         identifiers = [gene_identifier] if isinstance(gene_identifier, str) else gene_identifier
@@ -79,6 +156,7 @@ class PreparedDataSource:
                 combined_gene_data['transcripts'] = filtered_transcripts
                 visible_transcripts = filtered_transcripts
 
+        transcript_ids = [transcript['transcript_id'] for transcript in visible_transcripts]
         all_starts = [exon['start'] for t in visible_transcripts for exon in t['exons']]
         all_ends = [exon['end'] for t in visible_transcripts for exon in t['exons']]
 
@@ -91,9 +169,20 @@ class PreparedDataSource:
             gene_start, gene_end = 0, 1000
 
         prepared_tracks = []
+        split_track_specs = []
+        split_modes = set()
         for i, track in enumerate(self.tracks):
-            # Handle transcript-coordinate BAM tracks
-            if hasattr(track, 'transcript_coord') and track.transcript_coord:
+            split_mode = getattr(track, 'split_by_transcript', None)
+            if split_mode is not None:
+                split_modes.add(split_mode)
+                if hasattr(track, 'get_coverage_by_transcript'):
+                    split_track_specs.append((i, track, track.get_coverage_by_transcript(gene_identifier)))
+                    continue
+                if hasattr(track, 'get_grouped_anno_by_transcript'):
+                    split_track_specs.append((i, track, track.get_grouped_anno_by_transcript(gene_identifier)))
+                    continue
+
+            if hasattr(track, 'transcript_coord') and track.transcript_coord and hasattr(track, 'get_coverage_for_transcripts'):
                 payload = track.get_coverage_for_transcripts(gene_identifier)
                 track_data = {'x': payload[0], 'y': payload[1]}
                 track_kind = 'coverage'
@@ -107,16 +196,17 @@ class PreparedDataSource:
             else:
                 continue
 
-            prepared_tracks.append({
-                'kind': track_kind,
-                'data': track_data,
-                'label': getattr(track, 'track_label', f'Track {i + 1}'),
-                'color': getattr(track, 'color', 'orange'),
-                'alpha': getattr(track, 'alpha', 0.8),
-                'y_axis_range': getattr(track, 'y_axis_range', None),
-                'file_colors': getattr(track, 'file_colors', None),
-                'file_alphas': getattr(track, 'file_alphas', None),
-            })
+            prepared_tracks.append(self._build_track_entry(track, track_kind, track_data, i))
+
+        if len(split_modes) > 1:
+            raise ValueError("split_by_transcript must be consistent across all split tracks")
+
+        if split_modes:
+            split_mode = next(iter(split_modes))
+            split_tracks = self._expand_split_tracks(split_mode, transcript_ids, split_track_specs)
+            if split_tracks:
+                prepared_tracks.extend(split_tracks)
+                combined_gene_data['right_label_groups'] = _build_right_label_groups(split_tracks)
 
         combined_gene_data['prepared_tracks'] = prepared_tracks
         return combined_gene_data
@@ -160,6 +250,8 @@ class DrViz:
         files = [bed_files] if isinstance(bed_files, str) else bed_files
         colors = [color] * len(files) if isinstance(color, str) else color
         alphas = [alpha] * len(files) if isinstance(alpha, (float, int)) else alpha
+        split_by_transcript = kwargs.pop('split_by_transcript', None)
+        _validate_split_by_transcript(split_by_transcript, transcript_coord)
 
         if len(colors) != len(files) or len(alphas) != len(files):
             raise ValueError("Length of color and alpha lists must match number of BED files")
@@ -181,6 +273,7 @@ class DrViz:
                 'parser_type': parser_type,
                 'y_axis_range': y_axis_range,
                 'transcript_coord': transcript_coord,
+                'split_by_transcript': split_by_transcript,
                 'parser_kwargs': dict(kwargs),
             },
             {
@@ -217,6 +310,8 @@ class DrViz:
             raise ImportError("BAM support requires pysam to be installed")
 
         files = [bam_files] if isinstance(bam_files, str) else bam_files
+        split_by_transcript = kwargs.pop('split_by_transcript', None)
+        _validate_split_by_transcript(split_by_transcript, transcript_coord)
         label = _make_unique_label(label, {spec['label'] for spec in self.track_specs})
         _register_track_spec(
             self.track_specs,
@@ -230,6 +325,7 @@ class DrViz:
                 'aggregate_method': aggregate_method,
                 'y_axis_range': y_axis_range,
                 'transcript_coord': transcript_coord,
+                'split_by_transcript': split_by_transcript,
                 'parser_kwargs': dict(kwargs),
             },
             {
@@ -259,7 +355,10 @@ class DrViz:
             label = spec["label"]
             if label not in track_by_label:
                 raise RuntimeError(f"Prepared track missing for label {label}")
-            ordered_tracks.append(track_by_label.pop(label))
+            track = track_by_label.pop(label)
+            if spec.get('split_by_transcript') is not None:
+                track.split_by_transcript = spec['split_by_transcript']
+            ordered_tracks.append(track)
         if track_by_label:
             raise RuntimeError(
                 f"Unexpected prepared tracks returned: {', '.join(sorted(str(label) for label in track_by_label))}"
@@ -336,64 +435,3 @@ class ReusableParser:
             plt.close(fig)
 
         return fig
-
-    def get_available_genes(self) -> List[str]:
-        """Return all available gene IDs from the loaded GTF data."""
-        if hasattr(self.data_source, 'gtf_parser'):
-            return list(self.data_source.gtf_parser.gene_info.keys())
-        return []
-
-    def get_available_gene_names(self) -> List[str]:
-        """Return all available gene names from the loaded GTF data."""
-        if hasattr(self.data_source, 'gtf_parser'):
-            return list(self.data_source.gtf_parser.gene_name_to_id.keys())
-        return []
-
-    def batch_plot(self, genes: List[str],
-                   output_dir: str,
-                   prefix: str = "",
-                   **kwargs) -> List[str]:
-        """Plot multiple genes and save each figure into one output directory."""
-        import os
-        os.makedirs(output_dir, exist_ok=True)
-
-        output_files = []
-        for gene in genes:
-            filename = f"{prefix}{gene}.pdf"
-            output_path = os.path.join(output_dir, filename)
-            self.plot(gene, output=output_path, show=False, close=True, **kwargs)
-            output_files.append(output_path)
-            print(f"Plotted {gene} -> {output_path}")
-
-        return output_files
-
-
-
-def quick_batch(gtf_file: str,
-                genes: List[str],
-                output_dir: str,
-                bed_files: List[str] = None,
-                **kwargs) -> List[str]:
-    """Convenience helper for batch plotting from one GTF and optional BED tracks."""
-    viz = DrViz().load_gtf(gtf_file)
-
-    if bed_files:
-        for bed_file in bed_files:
-            viz.add_bed_track(bed_file)
-
-    return viz.batch_plot(genes, output_dir, **kwargs)
-
-
-def quick_plot(gtf_file: str,
-               gene: str,
-               bed_files: List[str] = None,
-               output: str = None,
-               **kwargs) -> plt.Figure:
-    """Convenience helper for one-shot plotting from one GTF and optional BED tracks."""
-    viz = DrViz().load_gtf(gtf_file)
-
-    if bed_files:
-        for bed_file in bed_files:
-            viz.add_bed_track(bed_file)
-
-    return viz.plot(gene, output=output, **kwargs)
