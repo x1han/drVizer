@@ -1,8 +1,8 @@
 # drVizer
 
-**drVizer** is an API-first Python library for visualizing transcript structures from GTF annotations with optional BED annotations and BAM-derived coverage tracks.
+**drVizer** is a Python library developed alongside the AIDRS workflow for visualizing direct RNA sequencing long-read transcript structures, optional BED annotations, and BAM-derived coverage tracks.
 
-It is designed for reusable, scriptable figure generation in transcriptomics and related genomic analysis workflows.
+It is designed for reusable, scriptable figure generation in direct RNA sequencing and related transcriptomics workflows.
 
 ## Key features
 
