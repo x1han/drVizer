@@ -63,11 +63,6 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=requirements,
-    entry_points={
-        "console_scripts": [
-            "drvizer=drvizer.cli:main",
-        ],
-    },
     keywords="bioinformatics, genomics, transcriptomics, gtf, bed, visualization",
     project_urls={
         "Bug Reports": "https://github.com/yourusername/drvizer/issues",
