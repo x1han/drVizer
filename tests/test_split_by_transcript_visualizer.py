@@ -293,3 +293,82 @@ def test_reusable_parser_skips_empty_track_labels_in_plot():
 
     axis_labels = [ax.get_ylabel() for ax in fig.axes]
     assert axis_labels == ["Transcripts", "TE", "Reads"]
+
+
+class DummyDataSourceWithRepeatedVisibleLabels:
+    def get_transcript_data(self, gene, transcript_to_show=None):
+        return {
+            "gene_id": gene,
+            "seqname": "chr1",
+            "strand": "+",
+            "identifier_type": "gene_id",
+            "original_identifier": gene,
+            "transcripts": [
+                {"transcript_id": "tx1", "exons": [{"start": 100, "end": 150}], "cds": []},
+                {"transcript_id": "tx2", "exons": [{"start": 300, "end": 350}], "cds": []},
+            ],
+            "prepared_tracks": [
+                {"kind": "distribution", "data": {"peak": [{"start": 90, "end": 120}]}, "label": "TE", "color": "orange", "alpha": 0.8},
+                {"kind": "coverage", "data": {"x": [105, 106], "y": [1, 2]}, "label": "Reads", "transcript_id": "tx1", "color": "steelblue", "alpha": 0.6},
+                {"kind": "score", "data": {"peak": [{"start": 110, "end": 115, "score": 0.3}]}, "label": "m6A", "transcript_id": "tx1", "color": "orange", "alpha": 0.8},
+                {"kind": "coverage", "data": {"x": [305, 306], "y": [2, 1]}, "label": "Reads", "transcript_id": "tx2", "color": "steelblue", "alpha": 0.6},
+            ],
+            "right_label_groups": [
+                {"transcript_id": "tx1", "start_index": 1, "end_index": 2},
+                {"transcript_id": "tx2", "start_index": 3, "end_index": 3},
+            ],
+        }
+
+
+
+
+class DummyDataSourceWithSparseTranscriptTrackCoverage:
+    def get_transcript_data(self, gene, transcript_to_show=None):
+        return {
+            "gene_id": gene,
+            "seqname": "chr1",
+            "strand": "+",
+            "identifier_type": "gene_id",
+            "original_identifier": gene,
+            "transcripts": [
+                {"transcript_id": "tx1", "exons": [{"start": 100, "end": 150}], "cds": []},
+                {"transcript_id": "tx2", "exons": [{"start": 300, "end": 350}], "cds": []},
+            ],
+            "prepared_tracks": [
+                {"kind": "distribution", "data": {"peak": [{"start": 90, "end": 120}]}, "label": "TE", "color": "orange", "alpha": 0.8},
+                {"kind": "coverage", "data": {"x": [105, 106], "y": [1, 2]}, "label": "Reads", "transcript_id": "tx1", "color": "steelblue", "alpha": 0.6},
+                {"kind": "coverage", "data": {"x": [305, 306], "y": [2, 1]}, "label": "Reads", "transcript_id": "tx2", "color": "steelblue", "alpha": 0.6},
+                {"kind": "score", "data": {"peak": [{"start": 310, "end": 315, "score": 0.3}]}, "label": "m6A", "transcript_id": "tx2", "color": "orange", "alpha": 0.8},
+                {"kind": "coverage", "data": {"x": [307, 308], "y": [3, 2]}, "label": "Reads", "transcript_id": "tx2", "color": "steelblue", "alpha": 0.6},
+            ],
+            "right_label_groups": [
+                {"transcript_id": "tx1", "start_index": 1, "end_index": 1},
+                {"transcript_id": "tx2", "start_index": 2, "end_index": 4},
+            ],
+        }
+
+
+
+
+
+
+
+def test_reusable_parser_repeats_track_configs_for_each_prepared_track_label():
+    parser = ReusableParser(
+        DummyDataSourceWithSparseTranscriptTrackCoverage(),
+        [
+            {"label": "TE", "color": "orange"},
+            {"label": "m6A", "color": "orange"},
+            {"label": "m5C", "color": "orange"},
+            {"label": "pseudoU", "color": "orange"},
+            {"label": "A-to-I", "color": "orange"},
+            {"label": "Reads", "color": "steelblue"},
+        ],
+    )
+
+    visible_configs = parser._build_visible_track_configs(
+        DummyDataSourceWithSparseTranscriptTrackCoverage().get_transcript_data("gene1")["prepared_tracks"]
+    )
+
+    assert [config["label"] for config in visible_configs] == ["TE", "Reads", "Reads", "m6A", "Reads"]
+

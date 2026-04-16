@@ -413,19 +413,18 @@ class ReusableParser:
         if not self.track_configs:
             return []
 
+        config_by_label = {
+            config['label']: config
+            for config in self.track_configs
+            if 'label' in config
+        }
+
         visible_configs = []
-        used_indices = set()
         for prepared_track in prepared_tracks:
             label = prepared_track.get('label')
-            if label is None:
+            if label is None or label not in config_by_label:
                 continue
-            for index, config in enumerate(self.track_configs):
-                if index in used_indices:
-                    continue
-                if config['label'] == label:
-                    visible_configs.append(config)
-                    used_indices.add(index)
-                    break
+            visible_configs.append(config_by_label[label])
         return visible_configs
 
     def plot(self, gene: Union[str, List[str]],
