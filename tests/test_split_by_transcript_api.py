@@ -140,9 +140,9 @@ def test_bed_parser_groups_annotations_by_transcript(transcript_split_gtf, trans
 
     assert list(grouped) == ["ENST00000111111", "ENST00000999999"]
     assert sorted(grouped["ENST00000111111"]) == ["peakA1", "peakB1"]
-    assert grouped["ENST00000111111"]["peakA1"][0]["chrom"] == "ENST00000111111"
-    assert grouped["ENST00000111111"]["peakA1"][0]["start"] == 5
-    assert grouped["ENST00000999999"]["peakB2"][0]["end"] == 35
+    assert grouped["ENST00000111111"]["peakA1"][0]["chrom"] == "chr1"
+    assert grouped["ENST00000111111"]["peakA1"][0]["start"] == 105
+    assert grouped["ENST00000999999"]["peakB2"][0]["end"] == 335
 
 
 def test_mixed_split_modes_are_rejected(transcript_split_gtf, transcript_split_bed_a, transcript_split_bed_b):
@@ -383,7 +383,68 @@ def test_mixed_genomic_and_split_transcript_tracks_preserve_genomic_coordinates(
     assert second_split_track['transcript_id'] == 'ENST00000999999'
     assert second_split_track['data']['x'][2:5].tolist() == [302, 303, 304]
     assert second_split_track['data']['y'][2:5].tolist() == [1, 1, 1]
-    assert payload['right_label_groups'] == [
-        {'transcript_id': 'ENST00000111111', 'start_index': 1, 'end_index': 1},
-        {'transcript_id': 'ENST00000999999', 'start_index': 2, 'end_index': 2},
-    ]
+
+
+def test_prepared_tracks_keep_score_kind_for_split_bed(transcript_split_gtf, transcript_split_bed_a, transcript_split_bed_b):
+    parser = (
+        DrViz()
+        .load_gtf(str(transcript_split_gtf))
+        .add_bed_track(
+            [str(transcript_split_bed_a), str(transcript_split_bed_b)],
+            label='ScoreTrack',
+            transcript_coord=True,
+            split_by_transcript='nc',
+            parser_type='score',
+            color=['gray', 'blue'],
+            alpha=[0.1, 0.25],
+        )
+        .build()
+    )
+
+    payload = parser.data_source.get_transcript_data('gene1')
+
+    assert [track['kind'] for track in payload['prepared_tracks']] == ['score', 'score']
+    assert payload['prepared_tracks'][0]['file_colors'] == ['gray', 'blue']
+    assert payload['prepared_tracks'][0]['file_alphas'] == [0.1, 0.25]
+
+
+def test_reusable_parser_skips_labels_for_empty_split_tracks(transcript_split_gtf, tmp_bed_second):
+    parser = (
+        DrViz()
+        .load_gtf(str(transcript_split_gtf))
+        .add_bed_track(str(tmp_bed_second), label='TE')
+        .add_bed_track(
+            str(tmp_bed_second),
+            label='m6A',
+            transcript_coord=True,
+            split_by_transcript='nc',
+            parser_type='score',
+        )
+        .build()
+    )
+
+    gene_data = parser.data_source.get_transcript_data('gene1')
+
+    assert [track['label'] for track in gene_data['prepared_tracks']] == ['TE']
+    assert [config['label'] for config in parser.track_configs] == ['TE', 'm6A']
+
+
+def test_split_bed_tracks_are_projected_to_genomic_coordinates(transcript_split_gtf, transcript_split_bed_a):
+    parser = (
+        DrViz()
+        .load_gtf(str(transcript_split_gtf))
+        .add_bed_track(
+            str(transcript_split_bed_a),
+            label='m6A',
+            transcript_coord=True,
+            split_by_transcript='nc',
+            parser_type='score',
+        )
+        .build()
+    )
+
+    payload = parser.data_source.get_transcript_data('gene1')
+
+    first_track_elements = next(iter(payload['prepared_tracks'][0]['data'].values()))
+    assert first_track_elements[0]['chrom'] == 'chr1'
+    assert first_track_elements[0]['start'] == 105

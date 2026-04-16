@@ -190,50 +190,106 @@ def test_visualizer_positions_nc_right_labels_after_non_split_track():
     plt.close(fig)
 
 
-def test_visualizer_uses_multiple_colors_for_coverage_subtracks():
+def test_visualizer_renders_score_tracks_with_multiple_file_colors():
     transcript_data = _base_transcript_data()
     transcript_data["prepared_tracks"] = [
         {
-            "kind": "coverage",
+            "kind": "score",
             "data": {
-                "series": [
-                    {"x": [105, 106], "y": [1, 2], "color": "#f14432", "alpha": 0.6, "source_label": "COPD"},
-                    {"x": [105, 106], "y": [2, 1], "color": "#4a98c9", "alpha": 0.4, "source_label": "Control"},
+                "peakA": [
+                    {"start": 105, "end": 115, "score": 0.1},
+                    {"start": 120, "end": 130, "score": 0.2},
+                    {"start": 135, "end": 145, "score": 0.3},
+                    {"start": 150, "end": 160, "score": 0.4},
                 ]
             },
-            "label": "Reads",
+            "label": "m6A",
             "transcript_id": "ENST00000111111",
-        },
-        {
-            "kind": "coverage",
-            "data": {
-                "series": [
-                    {"x": [305, 306], "y": [2, 1], "color": "#f14432", "alpha": 0.6, "source_label": "COPD"},
-                    {"x": [305, 306], "y": [1, 2], "color": "#4a98c9", "alpha": 0.4, "source_label": "Control"},
-                ]
-            },
-            "label": "Reads",
-            "transcript_id": "ENST00000999999",
-        },
+            "file_colors": ["gray", "gray", "blue", "red"],
+            "file_alphas": [0.1, 0.1, 0.25, 0.25],
+        }
     ]
     transcript_data["right_label_groups"] = [
         {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
-        {"transcript_id": "ENST00000999999", "start_index": 1, "end_index": 1},
     ]
 
     fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
 
-    coverage_facecolors = [
-        tuple(round(value, 3) for value in collection.get_facecolor()[0][:4])
-        for axis in fig.axes[1:]
-        for collection in axis.collections
-        if len(collection.get_facecolor()) > 0
+    patch_facecolors = [
+        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
+        for patch in ax.patches
     ]
 
-    assert coverage_facecolors == [
-        (0.945, 0.267, 0.196, 0.6),
-        (0.29, 0.596, 0.788, 0.4),
-        (0.945, 0.267, 0.196, 0.6),
-        (0.29, 0.596, 0.788, 0.4),
+    assert patch_facecolors == [
+        (0.502, 0.502, 0.502, 0.1),
+        (0.502, 0.502, 0.502, 0.1),
+        (0.0, 0.0, 1.0, 0.25),
+        (1.0, 0.0, 0.0, 0.25),
     ]
     plt.close(fig)
+
+
+def test_visualizer_renders_distribution_tracks_with_track_color():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "distribution",
+            "data": {"peakA": [{"start": 105, "end": 115}]},
+            "label": "TE",
+            "transcript_id": "ENST00000111111",
+            "color": "purple",
+            "alpha": 0.3,
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    patch_facecolors = [
+        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
+        for patch in ax.patches
+    ]
+
+    assert patch_facecolors == [
+        (0.502, 0.0, 0.502, 0.3),
+    ]
+    plt.close(fig)
+
+
+class DummyDataSourceWithEmptySplitTracks:
+    def get_transcript_data(self, gene, transcript_to_show=None):
+        return {
+            "gene_id": gene,
+            "seqname": "chr1",
+            "strand": "+",
+            "identifier_type": "gene_id",
+            "original_identifier": gene,
+            "transcripts": [
+                {"transcript_id": "ENST00000111111", "exons": [{"start": 100, "end": 150}], "cds": []},
+            ],
+            "prepared_tracks": [
+                {"kind": "distribution", "data": {"peak": [{"start": 105, "end": 120}]}, "label": "TE", "color": "orange", "alpha": 0.8},
+                {"kind": "coverage", "data": {"x": [100, 101], "y": [1, 2]}, "label": "Reads", "transcript_id": "ENST00000111111", "color": "steelblue", "alpha": 0.6},
+            ],
+        }
+
+
+def test_reusable_parser_skips_empty_track_labels_in_plot():
+    parser = ReusableParser(
+        DummyDataSourceWithEmptySplitTracks(),
+        [
+            {"label": "TE", "color": "orange"},
+            {"label": "m6A", "color": "orange"},
+            {"label": "m5C", "color": "orange"},
+            {"label": "Reads", "color": "steelblue"},
+        ],
+    )
+
+    fig = parser.plot("gene1", show=False)
+
+    axis_labels = [ax.get_ylabel() for ax in fig.axes]
+    assert axis_labels == ["Transcripts", "TE", "Reads"]

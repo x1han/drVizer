@@ -105,7 +105,7 @@ class PreparedDataSource:
                         self._build_track_entry(
                             track,
                             'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
-                            track_data if hasattr(track, 'get_coverage_by_transcript') else track_data,
+                            track_data,
                             track_index,
                             transcript_id,
                         )
@@ -120,7 +120,7 @@ class PreparedDataSource:
                         self._build_track_entry(
                             track,
                             'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
-                            track_data if hasattr(track, 'get_coverage_by_transcript') else track_data,
+                            track_data,
                             track_index,
                             transcript_id,
                         )
@@ -409,6 +409,25 @@ class ReusableParser:
         self.data_source = data_source
         self.track_configs = track_configs
 
+    def _build_visible_track_configs(self, prepared_tracks):
+        if not self.track_configs:
+            return []
+
+        visible_configs = []
+        used_indices = set()
+        for prepared_track in prepared_tracks:
+            label = prepared_track.get('label')
+            if label is None:
+                continue
+            for index, config in enumerate(self.track_configs):
+                if index in used_indices:
+                    continue
+                if config['label'] == label:
+                    visible_configs.append(config)
+                    used_indices.add(index)
+                    break
+        return visible_configs
+
     def plot(self, gene: Union[str, List[str]],
              transcript_to_show: Union[str, List[str]] = None,
              output: str = None,
@@ -421,13 +440,13 @@ class ReusableParser:
         _configure_for_illustrator()
         gene_data = self.data_source.get_transcript_data(gene, transcript_to_show=transcript_to_show)
 
+        visible_track_configs = self._build_visible_track_configs(gene_data.get('prepared_tracks', []))
         track_labels = ['Transcripts']
         track_colors = [None]
 
-        if self.track_configs:
-            for config in self.track_configs:
-                track_labels.append(config['label'])
-                track_colors.append(config['color'])
+        for config in visible_track_configs:
+            track_labels.append(config['label'])
+            track_colors.append(config['color'])
 
         gene_data['track_labels'] = track_labels
         gene_data['track_colors'] = track_colors

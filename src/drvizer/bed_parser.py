@@ -101,6 +101,25 @@ else:
     _CYTHON_BED_AVAILABLE = True
 
 
+def _project_transcript_record(gtf_parser, transcript_id, record):
+    result = gtf_parser.convert_transcript_to_genomic_segments(
+        transcript_id, record['start'], record['end']
+    )
+    if not result:
+        return []
+
+    chrom, genomic_strand, segments = result
+    projected_records = []
+    for genomic_start, genomic_end in segments:
+        transcript_record = record.copy()
+        transcript_record['chrom'] = chrom
+        transcript_record['start'] = genomic_start
+        transcript_record['end'] = genomic_end
+        transcript_record['strand'] = genomic_strand
+        projected_records.append(transcript_record)
+    return projected_records
+
+
 class BEDParser:
     """
     A class to parse BED files and extract annotation information for visualization.
@@ -189,20 +208,8 @@ class BEDParser:
                     raise ValueError("gtf_parser is required when transcript_coord is True")
 
                 transcript_id = record['chrom']
-                result = self.gtf_parser.convert_transcript_to_genomic_segments(
-                    transcript_id, record['start'], record['end']
-                )
-                if not result:
-                    continue
-
-                chrom, genomic_strand, segments = result
-                for genomic_start, genomic_end in segments:
-                    segment_record = record.copy()
-                    segment_record['chrom'] = chrom
-                    segment_record['start'] = genomic_start
-                    segment_record['end'] = genomic_end
-                    segment_record['strand'] = genomic_strand
-                    self.anno_data[segment_record['chrom']].append(segment_record)
+                for projected_record in _project_transcript_record(self.gtf_parser, transcript_id, record):
+                    self.anno_data[projected_record['chrom']].append(projected_record)
 
     def _parse_genomic_records(self, region=None):
         if _CYTHON_BED_AVAILABLE and parse_bed_records is not None:
@@ -247,6 +254,45 @@ class BEDParser:
         if not self._parsed:
             self.parse_bed()
         return list(self.anno_data.keys())
+
+    def get_grouped_anno_by_transcript(self, gene_identifier):
+        """
+        Get transcript-coordinate annotations grouped by transcript.
+
+        Args:
+            gene_identifier: Gene ID, gene name, or transcript ID to look up
+
+        Returns:
+            dict: Transcript ID to grouped annotation dictionary
+        """
+        if not self.transcript_coord:
+            raise ValueError("get_grouped_anno_by_transcript requires transcript_coord=True")
+        if not self.gtf_parser:
+            raise ValueError("gtf_parser is required when transcript_coord is True")
+
+        gene_data = self.gtf_parser.get_transcript_data(gene_identifier)
+        annotations_by_transcript = {}
+
+        grouped = parse_bed_records_python(self.bed_file_paths)
+        for transcript_info in gene_data['transcripts']:
+            transcript_id = transcript_info['transcript_id']
+            transcript_records = grouped.get(transcript_id, [])
+            if not transcript_records:
+                continue
+
+            grouped_records = {}
+            for record in transcript_records:
+                projected_records = _project_transcript_record(self.gtf_parser, transcript_id, record)
+                if not projected_records:
+                    continue
+
+                group = grouped_records.setdefault(record['name'], [])
+                group.extend(projected_records)
+
+            if grouped_records:
+                annotations_by_transcript[transcript_id] = grouped_records
+
+        return annotations_by_transcript
 
     def get_grouped_anno_in_region(self, chrom, start, end):
         """
