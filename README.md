@@ -174,6 +174,74 @@ parser = (
 fig = parser.plot("ENSG00000136997")
 ```
 
+### Transcript-coordinate tracks and `split_by_transcript`
+
+`drVizer` supports transcript-coordinate BED and BAM inputs by setting:
+
+```python
+transcript_coord=True
+```
+
+This is useful when your BED or BAM records are aligned to transcript IDs rather than genomic chromosome coordinates.
+
+You can additionally split transcript-coordinate tracks by transcript with:
+
+```python
+split_by_transcript='nc'  # or 'cn'
+```
+
+- `None` (default): keep the legacy combined track behavior
+- `'nc'`: transcript-major ordering (`transcript1-track1-track2`, then `transcript2-track1-track2`)
+- `'cn'`: track-major ordering (`track1-transcript1-transcript2`, then `track2-transcript1-transcript2`)
+
+When split mode is enabled, drVizer adds transcript labels on the right side for the split subtracks.
+
+### Example: TE track plus split transcript-coordinate BAM tracks
+
+```python
+from drvizer import DrViz
+
+parser = (
+    DrViz()
+    .load_gtf("genes.gtf")
+    .add_bed_track("repeats.bed", label="TE")
+    .add_bam_track(
+        "copd_reads.bam",
+        label="COPD",
+        color="#f14432",
+        alpha=0.6,
+        transcript_coord=True,
+        split_by_transcript="nc",
+    )
+    .add_bam_track(
+        "control_reads.bam",
+        label="Control",
+        color="#4a98c9",
+        alpha=0.6,
+        transcript_coord=True,
+        split_by_transcript="nc",
+    )
+    .build()
+)
+
+fig = parser.plot("CHIA", show=False)
+```
+
+### Key track parameters
+
+Common options for `add_bed_track(...)` and `add_bam_track(...)` include:
+
+- `label`: display name for the track
+- `color`: track color
+- `alpha`: transparency
+- `transcript_coord`: treat the input as transcript-coordinate data
+- `split_by_transcript`: split transcript-coordinate tracks by transcript (`None`, `'nc'`, `'cn'`)
+- `y_axis_range`: fix the y-axis maximum instead of auto-scaling
+
+BAM-specific options:
+
+- `aggregate_method`: combine multiple BAM files using `'sum'` or `'mean'`
+
 ## 🧩 Main capabilities
 
 - Parse one or multiple **GTF** files
