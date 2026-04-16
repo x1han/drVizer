@@ -138,10 +138,38 @@ def test_visualizer_positions_nc_right_labels_after_non_split_track():
     transcript_data = _base_transcript_data()
     transcript_data["prepared_tracks"] = [
         {"kind": "distribution", "data": {"te": [{"start": 90, "end": 130}]}, "label": "TE"},
-        {"kind": "coverage", "data": {"x": [105, 106], "y": [1, 2]}, "label": "COPD", "transcript_id": "ENST00000111111"},
-        {"kind": "coverage", "data": {"x": [105, 106], "y": [2, 1]}, "label": "Control", "transcript_id": "ENST00000111111"},
-        {"kind": "coverage", "data": {"x": [305, 306], "y": [1, 2]}, "label": "COPD", "transcript_id": "ENST00000999999"},
-        {"kind": "coverage", "data": {"x": [305, 306], "y": [2, 1]}, "label": "Control", "transcript_id": "ENST00000999999"},
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [1, 2]},
+            "label": "COPD",
+            "transcript_id": "ENST00000111111",
+            "file_colors": ["#f14432", "#4a98c9"],
+            "file_alphas": [0.6, 0.6],
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [2, 1]},
+            "label": "Control",
+            "transcript_id": "ENST00000111111",
+            "file_colors": ["#f14432", "#4a98c9"],
+            "file_alphas": [0.6, 0.6],
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [305, 306], "y": [1, 2]},
+            "label": "COPD",
+            "transcript_id": "ENST00000999999",
+            "file_colors": ["#f14432", "#4a98c9"],
+            "file_alphas": [0.6, 0.6],
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [305, 306], "y": [2, 1]},
+            "label": "Control",
+            "transcript_id": "ENST00000999999",
+            "file_colors": ["#f14432", "#4a98c9"],
+            "file_alphas": [0.6, 0.6],
+        },
     ]
     transcript_data["right_label_groups"] = [
         {"transcript_id": "ENST00000111111", "start_index": 1, "end_index": 2},
@@ -159,4 +187,53 @@ def test_visualizer_positions_nc_right_labels_after_non_split_track():
 
     assert abs(first_label_y - first_group_center_y) < 1e-9
     assert abs(first_label_y - te_center_y) > 1e-3
+    plt.close(fig)
+
+
+def test_visualizer_uses_multiple_colors_for_coverage_subtracks():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {
+                "series": [
+                    {"x": [105, 106], "y": [1, 2], "color": "#f14432", "alpha": 0.6, "source_label": "COPD"},
+                    {"x": [105, 106], "y": [2, 1], "color": "#4a98c9", "alpha": 0.4, "source_label": "Control"},
+                ]
+            },
+            "label": "Reads",
+            "transcript_id": "ENST00000111111",
+        },
+        {
+            "kind": "coverage",
+            "data": {
+                "series": [
+                    {"x": [305, 306], "y": [2, 1], "color": "#f14432", "alpha": 0.6, "source_label": "COPD"},
+                    {"x": [305, 306], "y": [1, 2], "color": "#4a98c9", "alpha": 0.4, "source_label": "Control"},
+                ]
+            },
+            "label": "Reads",
+            "transcript_id": "ENST00000999999",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+        {"transcript_id": "ENST00000999999", "start_index": 1, "end_index": 1},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+
+    coverage_facecolors = [
+        tuple(round(value, 3) for value in collection.get_facecolor()[0][:4])
+        for axis in fig.axes[1:]
+        for collection in axis.collections
+        if len(collection.get_facecolor()) > 0
+    ]
+
+    assert coverage_facecolors == [
+        (0.945, 0.267, 0.196, 0.6),
+        (0.29, 0.596, 0.788, 0.4),
+        (0.945, 0.267, 0.196, 0.6),
+        (0.29, 0.596, 0.788, 0.4),
+    ]
     plt.close(fig)

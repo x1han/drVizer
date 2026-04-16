@@ -281,15 +281,36 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         bed_height = transcript_height / 2.5
 
         if track_kind == 'coverage':
-            x = track_data.get('x', [])
-            y = track_data.get('y', [])
-            if len(x) > 0:
-                ax_track.fill_between(x, y, color=track_color, alpha=track_alpha, step='mid', zorder=3)
-                ax_track.plot(x, y, color=track_color, lw=0.7, alpha=track_alpha * 1.2, zorder=4)
+            series = track_data.get('series')
+            if series:
+                max_y = 0
+                for item in series:
+                    x = item.get('x', [])
+                    y = item.get('y', [])
+                    if len(x) == 0:
+                        continue
+                    color = item.get('color', track_color)
+                    alpha = item.get('alpha', track_alpha)
+                    ax_track.fill_between(x, y, color=color, alpha=alpha, step='mid', zorder=3)
+                    ax_track.plot(x, y, color=color, lw=0.7, alpha=min(alpha * 1.2, 1.0), zorder=4)
+                    if len(y) > 0:
+                        max_y = max(max_y, float(np.max(y)))
                 if y_axis_range:
                     ax_track.set_ylim(0, y_axis_range)
                 else:
-                    ax_track.set_ylim(0, np.max(y) * 1.1 if len(y) > 0 else 1)
+                    ax_track.set_ylim(0, max_y * 1.1 if max_y > 0 else 1)
+            else:
+                x = track_data.get('x', [])
+                y = track_data.get('y', [])
+                if len(x) > 0:
+                    color = file_colors[i % len(file_colors)]
+                    alpha = file_alphas[i % len(file_alphas)]
+                    ax_track.fill_between(x, y, color=color, alpha=alpha, step='mid', zorder=3)
+                    ax_track.plot(x, y, color=color, lw=0.7, alpha=min(alpha * 1.2, 1.0), zorder=4)
+                    if y_axis_range:
+                        ax_track.set_ylim(0, y_axis_range)
+                    else:
+                        ax_track.set_ylim(0, np.max(y) * 1.1 if len(y) > 0 else 1)
             ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
             ax_track.grid(True, axis='x', alpha=0.25)
         elif track_kind == 'score':

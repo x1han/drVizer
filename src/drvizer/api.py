@@ -105,7 +105,7 @@ class PreparedDataSource:
                         self._build_track_entry(
                             track,
                             'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
-                            {'x': track_data['x'], 'y': track_data['y']} if hasattr(track, 'get_coverage_by_transcript') else track_data,
+                            track_data if hasattr(track, 'get_coverage_by_transcript') else track_data,
                             track_index,
                             transcript_id,
                         )
@@ -120,7 +120,7 @@ class PreparedDataSource:
                         self._build_track_entry(
                             track,
                             'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
-                            {'x': track_data['x'], 'y': track_data['y']} if hasattr(track, 'get_coverage_by_transcript') else track_data,
+                            track_data if hasattr(track, 'get_coverage_by_transcript') else track_data,
                             track_index,
                             transcript_id,
                         )
@@ -295,8 +295,8 @@ class DrViz:
 
     def add_bam_track(self, bam_files: Union[str, List[str]],
                       label: str = "Coverage",
-                      color: str = 'steelblue',
-                      alpha: float = 0.6,
+                      color: Union[str, List[str]] = 'steelblue',
+                      alpha: Union[float, List[float]] = 0.6,
                       aggregate_method: str = 'sum',
                       y_axis_range: float = None,
                       transcript_coord: bool = False,
@@ -316,8 +316,16 @@ class DrViz:
             raise ImportError("BAM support requires pysam to be installed")
 
         files = [bam_files] if isinstance(bam_files, str) else bam_files
+        colors = [color] * len(files) if isinstance(color, str) else color
+        alphas = [alpha] * len(files) if isinstance(alpha, (float, int)) else alpha
         split_by_transcript = kwargs.pop('split_by_transcript', None)
         _validate_split_by_transcript(split_by_transcript, transcript_coord)
+        if len(colors) != len(files) or len(alphas) != len(files):
+            raise ValueError("Length of color and alpha lists must match number of BAM files")
+
+        resolved_color = colors[0] if len(set(colors)) == 1 else 'steelblue'
+        resolved_alpha = alphas[0] if len(set(alphas)) == 1 else 0.6
+
         label = _make_unique_label(label, {spec['label'] for spec in self.track_specs})
         _register_track_spec(
             self.track_specs,
@@ -326,8 +334,10 @@ class DrViz:
                 'kind': 'bam',
                 'files': files,
                 'label': label,
-                'color': color,
-                'alpha': alpha,
+                'color': resolved_color,
+                'alpha': resolved_alpha,
+                'file_colors': colors,
+                'file_alphas': alphas,
                 'aggregate_method': aggregate_method,
                 'y_axis_range': y_axis_range,
                 'transcript_coord': transcript_coord,
@@ -336,9 +346,11 @@ class DrViz:
             },
             {
                 'label': label,
-                'color': color,
-                'alpha': alpha,
+                'color': resolved_color,
+                'alpha': resolved_alpha,
                 'type': 'coverage',
+                'file_colors': colors,
+                'file_alphas': alphas,
             },
         )
         return self

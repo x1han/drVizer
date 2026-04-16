@@ -1,6 +1,7 @@
 import pysam
 import numpy as np
 import os
+from pathlib import Path
 
 from drvizer._parallel import (
     ParallelCoverageError,
@@ -84,6 +85,120 @@ class BAMParser:
             )
 
         return total_coverage
+
+    def _get_coverage_for_transcript_from_path(self, bam_path, transcript_info, target_chrom):
+        region_start = None
+        region_end = None
+        for exon in transcript_info['exons']:
+            exon_start = exon['start']
+            exon_end = exon['end'] + 1
+            region_start = exon_start if region_start is None else min(region_start, exon_start)
+            region_end = exon_end if region_end is None else max(region_end, exon_end)
+
+        if region_start is None or region_end is None or region_end <= region_start:
+            return np.array([]), np.array([])
+
+        region_len = region_end - region_start
+        coverage = np.zeros(region_len, dtype=np.int32)
+        transcript_id = transcript_info['transcript_id']
+
+        with pysam.AlignmentFile(bam_path, "rb") as sam:
+            transcript_lengths = {ref['SN']: ref['LN'] for ref in sam.header['SQ']}
+            transcript_len = transcript_lengths.get(transcript_id)
+            if transcript_len is None:
+                return np.array([]), np.array([])
+
+            for read in sam.fetch(transcript_id, 0, transcript_len):
+                blocks = read.get_blocks()
+                if not blocks:
+                    continue
+
+                for t_start, t_end in blocks:
+                    result = self.gtf_parser.convert_transcript_to_genomic_segments(
+                        transcript_id, t_start, t_end
+                    )
+                    if not result:
+                        continue
+
+                    chrom, _, segments = result
+                    if chrom != target_chrom:
+                        continue
+
+                    for g_start, g_end in segments:
+                        idx_s = max(0, g_start - region_start)
+                        idx_e = min(region_len, g_end - region_start)
+                        if idx_s < idx_e:
+                            coverage[idx_s:idx_e] += 1
+
+        x = np.arange(region_start, region_end)
+        return x, coverage
+
+    def _get_coverage_for_transcript(self, transcript_info, target_chrom):
+        series = []
+        for index, path in enumerate(self.bam_paths):
+            x, coverage = self._get_coverage_for_transcript_from_path(path, transcript_info, target_chrom)
+            if len(x) == 0:
+                continue
+            series.append({
+                'x': x,
+                'y': coverage,
+                'source_label': Path(path).name,
+                'color': self.file_colors[index] if getattr(self, 'file_colors', None) else self.color,
+                'alpha': self.file_alphas[index] if getattr(self, 'file_alphas', None) else self.alpha,
+            })
+
+        if not series:
+            return np.array([]), np.array([])
+
+        coverage = np.zeros_like(series[0]['y'], dtype=np.float64 if self.aggregate_method == 'mean' else np.int32)
+        for item in series:
+            coverage += item['y']
+
+        if self.aggregate_method == 'mean' and len(series) > 1:
+            coverage = coverage.astype(np.float64) / len(series)
+
+        return series[0]['x'], coverage, series
+
+    def get_coverage_by_transcript(self, gene_identifier, target_bins=2000):
+        """
+        Calculate coverage arrays for each transcript using the same genomic projection
+        logic as get_coverage_for_transcripts(), but split into one payload per transcript.
+        """
+        if not self.gtf_parser:
+            raise ValueError("gtf_parser is required for transcript coordinate BAM files")
+
+        gene_data = self.gtf_parser.get_transcript_data(gene_identifier)
+        target_chrom = gene_data['seqname']
+        coverage_by_transcript = {}
+
+        for transcript_info in gene_data['transcripts']:
+            coverage_payload = self._get_coverage_for_transcript(transcript_info, target_chrom)
+            if len(coverage_payload) == 2:
+                x, y = coverage_payload
+                series = None
+            else:
+                x, y, series = coverage_payload
+            if len(x) == 0:
+                continue
+
+            if len(x) > target_bins:
+                region_len = len(x)
+                bin_size = region_len // target_bins
+                crop_len = (region_len // bin_size) * bin_size
+                y = y[:crop_len].reshape(-1, bin_size).mean(axis=1)
+                x = x[:crop_len].reshape(-1, bin_size).mean(axis=1)
+                if series is not None:
+                    for item in series:
+                        item['y'] = item['y'][:crop_len].reshape(-1, bin_size).mean(axis=1)
+                        item['x'] = item['x'][:crop_len].reshape(-1, bin_size).mean(axis=1)
+
+            payload = {'x': x, 'y': y}
+            if series is not None:
+                payload['series'] = series
+
+            coverage_by_transcript[transcript_info['transcript_id']] = payload
+
+        return coverage_by_transcript
 
     def get_coverage_for_transcripts(self, gene_identifier, target_bins=2000):
         """

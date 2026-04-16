@@ -88,6 +88,29 @@ def test_add_bam_track_requires_transcript_coord_when_split_is_enabled(transcrip
         )
 
 
+def test_add_bam_track_preserves_per_file_color_and_alpha_lists(transcript_split_gtf):
+    viz = DrViz().load_gtf(str(transcript_split_gtf))
+
+    viz.add_bam_track(
+        ["a.bam", "b.bam"],
+        label="Reads",
+        color=["#f14432", "#4a98c9"],
+        alpha=[0.6, 0.4],
+        transcript_coord=True,
+        split_by_transcript="nc",
+    )
+
+    spec = viz.track_specs[0]
+    config = viz.track_configs[0]
+
+    assert spec["color"] == "steelblue"
+    assert spec["alpha"] == 0.6
+    assert spec["file_colors"] == ["#f14432", "#4a98c9"]
+    assert spec["file_alphas"] == [0.6, 0.4]
+    assert config["color"] == "steelblue"
+    assert config["alpha"] == 0.6
+
+
 def test_split_by_transcript_none_preserves_legacy_track_behavior(transcript_split_gtf, transcript_split_bed_a):
     viz = DrViz().load_gtf(str(transcript_split_gtf))
     bed_parser = BEDParser(
@@ -237,6 +260,7 @@ def test_prepared_tracks_expand_in_nc_order_for_bam(monkeypatch, transcript_spli
 
     class DummyAlignmentFile:
         def __init__(self, path, mode):
+            self.path = path
             self.header = {'SQ': [{'SN': 'ENST00000111111', 'LN': 100}, {'SN': 'ENST00000999999', 'LN': 80}]}
 
         def __enter__(self):
@@ -246,10 +270,16 @@ def test_prepared_tracks_expand_in_nc_order_for_bam(monkeypatch, transcript_spli
             return False
 
         def fetch(self, transcript_id, start, end):
-            if transcript_id == 'ENST00000111111':
-                return [DummyRead([(5, 8)]), DummyRead([(10, 12)])]
-            if transcript_id == 'ENST00000999999':
-                return [DummyRead([(2, 5)])]
+            if self.path == 'copd.bam':
+                if transcript_id == 'ENST00000111111':
+                    return [DummyRead([(5, 8)])]
+                if transcript_id == 'ENST00000999999':
+                    return [DummyRead([(2, 5)])]
+            if self.path == 'control.bam':
+                if transcript_id == 'ENST00000111111':
+                    return [DummyRead([(10, 12)])]
+                if transcript_id == 'ENST00000999999':
+                    return [DummyRead([(20, 22)])]
             return []
 
     monkeypatch.setattr(api, 'BAMParser', BAMParser)
@@ -261,8 +291,10 @@ def test_prepared_tracks_expand_in_nc_order_for_bam(monkeypatch, transcript_spli
         DrViz()
         .load_gtf(str(transcript_split_gtf))
         .add_bam_track(
-            'fake.bam',
+            ['copd.bam', 'control.bam'],
             label='Coverage',
+            color=['#f14432', '#4a98c9'],
+            alpha=[0.6, 0.6],
             transcript_coord=True,
             split_by_transcript='nc',
         )
@@ -283,10 +315,11 @@ def test_prepared_tracks_expand_in_nc_order_for_bam(monkeypatch, transcript_spli
         'coverage',
         'coverage',
     ]
-    assert [track['data']['x'][5:12].tolist() for track in payload['prepared_tracks']] == [
-        [105, 106, 107, 108, 109, 110, 111],
-        [305, 306, 307, 308, 309, 310, 311],
-    ]
+    assert [series['source_label'] for series in payload['prepared_tracks'][0]['data']['series']] == ['copd.bam', 'control.bam']
+    assert payload['prepared_tracks'][0]['data']['series'][0]['y'][5:8].tolist() == [1, 1, 1]
+    assert payload['prepared_tracks'][0]['data']['series'][1]['y'][10:12].tolist() == [1, 1]
+    assert payload['prepared_tracks'][1]['data']['series'][0]['y'][2:5].tolist() == [1, 1, 1]
+    assert payload['prepared_tracks'][1]['data']['series'][1]['y'][20:22].tolist() == [1, 1]
 
 
 def test_mixed_genomic_and_split_transcript_tracks_preserve_genomic_coordinates(monkeypatch, transcript_split_gtf, tmp_bed_second):

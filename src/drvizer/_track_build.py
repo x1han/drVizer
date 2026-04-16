@@ -20,6 +20,7 @@ def _is_process_safe_genomic_bed(spec):
 
 def _prepare_genomic_bed_track(spec):
     parser_kwargs = dict(spec.get("parser_kwargs", {}))
+    parser_kwargs.pop("split_by_transcript", None)
     parser = BEDParser(
         spec["files"],
         track_label=spec["label"],
@@ -46,6 +47,7 @@ def prepare_track(spec, gtf_parser):
             return _prepare_genomic_bed_track(spec)
 
         parser_kwargs = dict(spec.get("parser_kwargs", {}))
+        parser_kwargs.pop("split_by_transcript", None)
         parser = BEDParser(
             spec["files"],
             track_label=spec["label"],
@@ -67,6 +69,7 @@ def prepare_track(spec, gtf_parser):
             raise ImportError("BAM support requires pysam to be installed")
 
         parser_kwargs = dict(spec.get("parser_kwargs", {}))
+        parser_kwargs.pop("split_by_transcript", None)
         parser = BAMParser(
             spec["files"],
             track_label=spec["label"],
@@ -78,6 +81,8 @@ def prepare_track(spec, gtf_parser):
             **parser_kwargs,
         )
         parser.alpha = spec["alpha"]
+        parser.file_colors = list(spec["file_colors"])
+        parser.file_alphas = list(spec["file_alphas"])
         if hasattr(parser, "prepare_track"):
             parser.prepare_track(gtf_parser)
         return parser

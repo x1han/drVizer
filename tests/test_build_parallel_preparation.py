@@ -169,6 +169,44 @@ def test_build_requires_gtf_to_be_loaded_first(tmp_bed, monkeypatch):
         viz.build()
 
 
+def test_build_applies_bam_per_file_color_and_alpha_lists(tmp_gtf, monkeypatch):
+    viz = DrViz().load_gtf(str(tmp_gtf))
+
+    class FakeBamParser:
+        def __init__(self, bam_paths, track_label='BAM Coverage', contained_only=True,
+                     color='steelblue', y_axis_range=None, aggregate_method='sum',
+                     transcript_coord=False, gtf_parser=None):
+            self.bam_paths = [bam_paths] if isinstance(bam_paths, str) else list(bam_paths)
+            self.track_label = track_label
+            self.contained_only = contained_only
+            self.color = color
+            self.alpha = 0.6
+            self.y_axis_range = y_axis_range
+            self.aggregate_method = aggregate_method
+            self.parser_type = 'coverage'
+            self.transcript_coord = transcript_coord
+            self.gtf_parser = gtf_parser
+
+    monkeypatch.setattr("drvizer.api.BAMParser", FakeBamParser)
+    monkeypatch.setattr("drvizer._track_build.BAMParser", FakeBamParser)
+
+    viz.add_bam_track(
+        ["a.bam", "b.bam"],
+        label="Reads",
+        color=["#f14432", "#4a98c9"],
+        alpha=[0.6, 0.4],
+        transcript_coord=True,
+    )
+
+    parser = viz.build()
+    track = parser.data_source.tracks[0]
+
+    assert track.color == 'steelblue'
+    assert track.alpha == 0.6
+    assert track.file_colors == ["#f14432", "#4a98c9"]
+    assert track.file_alphas == [0.6, 0.4]
+
+
 def test_build_makes_duplicate_track_labels_unique_in_registration_order(tmp_gtf, tmp_bed, tmp_bed_second, monkeypatch):
     viz = DrViz().load_gtf(str(tmp_gtf))
 
