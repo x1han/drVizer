@@ -1,8 +1,17 @@
 # drVizer
 
-**drVizer** is a Python library for visualizing transcript structures from GTF annotations with optional BED and BAM-derived tracks.
+**drVizer** is an API-first Python library for visualizing transcript structures from GTF annotations with optional BED annotations and BAM-derived coverage tracks.
 
-It is designed for API-first use in analysis scripts and reusable plotting workflows.
+It is designed for reusable, scriptable figure generation in transcriptomics and related genomic analysis workflows.
+
+## Key features
+
+- Build transcript structure figures from one or multiple GTF files
+- Overlay BED annotation tracks and BAM coverage tracks
+- Support transcript-coordinate BED and BAM inputs
+- Split transcript-coordinate tracks into transcript-specific subtracks
+- Reuse parsed state across many plotting calls through a builder-style API
+- Export publication-ready figures through matplotlib
 
 ## Installation
 
@@ -26,15 +35,15 @@ pip install pysam
 
 ## Core workflow
 
-The main API is centered on `DrViz`:
+The public workflow is centered on `DrViz`:
 
-- `load_gtf(...)`
-- `add_bed_track(...)`
-- `add_bam_track(...)`
-- `build()`
-- `plot(...)`
+1. `load_gtf(...)`
+2. `add_bed_track(...)`
+3. `add_bam_track(...)`
+4. `build()`
+5. `plot(...)`
 
-## Basic example
+### Minimal example
 
 ```python
 from drvizer import DrViz
@@ -49,7 +58,7 @@ parser = (
 fig = parser.plot("TP53")
 ```
 
-## Add multiple BED tracks
+### BED and BAM example
 
 ```python
 from drvizer import DrViz
@@ -57,22 +66,7 @@ from drvizer import DrViz
 parser = (
     DrViz()
     .load_gtf("genes.gtf")
-    .add_bed_track("te.bed", label="TE", color="tomato")
-    .add_bed_track("mod_sites.bed", label="m6A", color="royalblue")
-    .build()
-)
-
-fig = parser.plot("TP53")
-```
-
-## Add BAM coverage
-
-```python
-from drvizer import DrViz
-
-parser = (
-    DrViz()
-    .load_gtf("genes.gtf")
+    .add_bed_track("repeats.bed", label="TE", color="tomato")
     .add_bam_track("reads.bam", label="Coverage", color="steelblue")
     .build()
 )
@@ -80,7 +74,7 @@ parser = (
 fig = parser.plot("TP53")
 ```
 
-## One-shot plotting
+### One-shot plotting
 
 ```python
 from drvizer import DrViz
@@ -93,15 +87,15 @@ fig = (
 )
 ```
 
-## Transcript-coordinate tracks
+## Transcript-coordinate workflows
 
-You can treat BED or BAM inputs as transcript-coordinate data by setting:
+Set `transcript_coord=True` when BED or BAM records are aligned to transcript IDs rather than genomic chromosome coordinates.
 
 ```python
 transcript_coord=True
 ```
 
-This is useful when records are aligned to transcript IDs rather than genomic chromosome coordinates.
+This enables drVizer to project transcript-coordinate inputs back into genomic plotting space.
 
 ## Split transcript tracks
 
@@ -117,9 +111,9 @@ Supported modes:
 - `"nc"`: transcript-major ordering
 - `"cn"`: track-major ordering
 
-When split mode is enabled, drVizer adds transcript labels on the right side of split subtracks.
+When split mode is enabled, drVizer adds transcript labels on the right side of split subtracks and keeps left-side track labels aligned with the rendered subplot order.
 
-## Example: split transcript-coordinate BAM and BED tracks
+### Example: split transcript-coordinate BED and BAM tracks
 
 ```python
 from drvizer import DrViz
@@ -151,7 +145,9 @@ parser = (
 fig = parser.plot("TP53", show=False)
 ```
 
-## Common parameters
+## Key API concepts
+
+### Track configuration
 
 Common options for `add_bed_track(...)` and `add_bam_track(...)` include:
 
@@ -166,16 +162,36 @@ BAM-specific options:
 
 - `aggregate_method`: combine multiple BAM files using `"sum"` or `"mean"`
 
-## Capabilities
+BED-specific options:
 
-- Parse one or multiple GTF files
-- Access genes by gene ID, gene name, or transcript ID
-- Add BED annotation tracks with `add_bed_track(...)`
-- Add BAM coverage tracks with `add_bam_track(...)`
-- Export figures as PNG, PDF, or SVG
-- Reuse parsed data efficiently across many genes with `build()`
+- `parser_type`: render BED data as `"distribution"` or `"score"`
 
-## Public API
+### Reusable plotting
+
+`build()` freezes the configured tracks into a reusable parser object. This is the preferred workflow when plotting multiple genes from the same GTF and track configuration.
+
+```python
+parser = (
+    DrViz()
+    .load_gtf("genes.gtf")
+    .add_bed_track("repeats.bed", label="TE")
+    .build()
+)
+
+fig1 = parser.plot("TP53")
+fig2 = parser.plot("MYC")
+```
+
+## Output behavior
+
+drVizer renders matplotlib figures and returns the resulting `Figure` object from `plot(...)`.
+
+Figures can be:
+- displayed directly
+- resized after creation
+- saved through matplotlib using PNG, PDF, SVG, or other supported formats
+
+## Public entry point
 
 ```python
 from drvizer import DrViz
