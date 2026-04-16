@@ -41,23 +41,25 @@ def _validate_split_by_transcript(split_by_transcript, transcript_coord):
         raise ValueError("split_by_transcript requires transcript_coord=True")
 
 
-def _build_right_label_groups(prepared_tracks):
+def _build_right_label_groups(prepared_tracks, start_index=0):
     groups = []
-    start_index = 0
-    while start_index < len(prepared_tracks):
-        transcript_id = prepared_tracks[start_index].get('transcript_id')
-        end_index = start_index
+    index = start_index
+    end_index = start_index + len(prepared_tracks)
+    while index < end_index:
+        relative_index = index - start_index
+        transcript_id = prepared_tracks[relative_index].get('transcript_id')
+        group_end = index
         while (
-            end_index + 1 < len(prepared_tracks)
-            and prepared_tracks[end_index + 1].get('transcript_id') == transcript_id
+            group_end + 1 < end_index
+            and prepared_tracks[group_end + 1 - start_index].get('transcript_id') == transcript_id
         ):
-            end_index += 1
+            group_end += 1
         groups.append({
             'transcript_id': transcript_id,
-            'start_index': start_index,
-            'end_index': end_index,
+            'start_index': index,
+            'end_index': group_end,
         })
-        start_index = end_index + 1
+        index = group_end + 1
     return groups
 
 
@@ -205,8 +207,12 @@ class PreparedDataSource:
             split_mode = next(iter(split_modes))
             split_tracks = self._expand_split_tracks(split_mode, transcript_ids, split_track_specs)
             if split_tracks:
+                split_track_start = len(prepared_tracks)
                 prepared_tracks.extend(split_tracks)
-                combined_gene_data['right_label_groups'] = _build_right_label_groups(split_tracks)
+                combined_gene_data['right_label_groups'] = _build_right_label_groups(
+                    split_tracks,
+                    start_index=split_track_start,
+                )
 
         combined_gene_data['prepared_tracks'] = prepared_tracks
         return combined_gene_data

@@ -11,6 +11,51 @@ import numpy as np
 from typing import Union, List
 
 
+def _has_right_labels(prepared_tracks):
+    """Check if right-side transcript labels should be rendered."""
+    if not prepared_tracks:
+        return False
+    return any(track.get("transcript_id") for track in prepared_tracks)
+
+
+def _shorten_transcript_label(label):
+    if 'Novel' in label:
+        label = label.split('_')[-1]
+    if len(label) > 40:
+        return label[:40] + '...'
+    return label
+
+
+def _add_right_side_transcript_labels(fig, axes, right_label_groups):
+    """Render vertical transcript labels on the right side of the figure."""
+    if not right_label_groups:
+        return
+
+    for group in right_label_groups:
+        start_idx = group["start_index"]
+        end_idx = group["end_index"]
+        transcript_id = group["transcript_id"]
+
+        start_axis = axes[start_idx + 1]
+        end_axis = axes[end_idx + 1]
+
+        start_box = start_axis.get_position()
+        end_box = end_axis.get_position()
+
+        y_center = (start_box.y1 + end_box.y0) / 2
+        display_label = _shorten_transcript_label(transcript_id)
+
+        fig.text(
+            0.985,
+            y_center,
+            display_label,
+            rotation=270,
+            va="center",
+            ha="center",
+            fontsize=8,
+        )
+
+
 def _compute_track_layout(num_transcripts, prepared_tracks=None,
                           transcript_width=12, transcript_height=0.5,
                           transcript_row_unit=0.5, distribution_row_unit=0.35,
@@ -209,19 +254,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     ax_gtf.add_patch(cds_rect)
 
         transcript_labels = [t['transcript_id'] for t in transcripts]
-        processed_labels = []
-        for label in transcript_labels:
-            if 'Novel' in label:
-                processed_labels.append(label.split('_')[-1])
-            else:
-                processed_labels.append(label)
-
-        truncated_labels = []
-        for label in processed_labels:
-            if len(label) > 40:
-                truncated_labels.append(label[:40] + '...')
-            else:
-                truncated_labels.append(label)
+        truncated_labels = [_shorten_transcript_label(label) for label in transcript_labels]
 
         ax_gtf.set_yticks(transcript_y_positions)
         ax_gtf.set_yticklabels(truncated_labels)
@@ -387,6 +420,9 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     track_gap = layout['track_gap']
     axes_height = layout['axes_height']
 
+    right_label_groups = transcript_data.get('right_label_groups', [])
+    needs_right_labels = _has_right_labels(prepared_tracks)
+
     if len(axes) > 1:
         hspace = track_gap * len(axes) / axes_height if axes_height > 0 else 0
     else:
@@ -397,8 +433,13 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     bottom_fraction = bottom_margin / figure_height
     title_y = 1 - title_height / (2 * figure_height)
 
-    fig.subplots_adjust(top=top_fraction, bottom=bottom_fraction, hspace=hspace)
+    right_margin = 0.9 if needs_right_labels else 0.98
+
+    fig.subplots_adjust(top=top_fraction, bottom=bottom_fraction, right=right_margin, hspace=hspace)
     fig._suptitle.set_y(title_y)
+
+    if needs_right_labels:
+        _add_right_side_transcript_labels(fig, axes, right_label_groups)
 
     for i, ax in enumerate(axes):
         ax.patch.set_visible(False)

@@ -56,19 +56,9 @@ def test_visualizer_adds_one_right_label_per_subtrack_for_cn():
     plt.close(fig)
 
 
-def _truncate_transcript_id(transcript_id, max_len=20):
-    """Truncate long transcript IDs for display.
-
-    First 10 chars + "..." + last 6 chars for ENST... style IDs.
-    """
-    if len(transcript_id) <= max_len:
-        return transcript_id
-    return transcript_id[:10] + "..." + transcript_id[-6:]
-
-
 def test_visualizer_truncates_long_transcript_ids():
-    """Test that long transcript IDs are truncated in right-side labels."""
-    long_id = "ENST00000646891.2_PAR_Y"
+    """Test that long transcript IDs are shortened in right-side labels."""
+    long_id = "Novel_transcript_with_a_very_long_identifier_suffix_000123456789"
     transcript_data = {
         "gene_id": "gene1",
         "seqname": "chr1",
@@ -89,8 +79,8 @@ def test_visualizer_truncates_long_transcript_ids():
     fig = visualize_gene_transcripts(transcript_data)
 
     right_texts = [text.get_text() for text in fig.texts]
-    truncated = _truncate_transcript_id(long_id)
-    assert truncated in right_texts or long_id in right_texts
+    assert "000123456789" in right_texts
+    assert long_id not in right_texts
     plt.close(fig)
 
 
