@@ -193,7 +193,7 @@ class BAMParser:
                         item['x'] = item['x'][:crop_len].reshape(-1, bin_size).mean(axis=1)
 
             payload = {'x': x, 'y': y}
-            if series is not None:
+            if series is not None and self.aggregate_method != 'mean':
                 payload['series'] = series
 
             coverage_by_transcript[transcript_info['transcript_id']] = payload

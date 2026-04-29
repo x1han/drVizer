@@ -322,6 +322,60 @@ def test_prepared_tracks_expand_in_nc_order_for_bam(monkeypatch, transcript_spli
     assert payload['prepared_tracks'][1]['data']['series'][1]['y'][20:22].tolist() == [1, 1]
 
 
+def test_split_bam_mean_uses_aggregated_track_instead_of_per_sample_series(monkeypatch, transcript_split_gtf):
+    class DummyRead:
+        def __init__(self, blocks):
+            self._blocks = blocks
+
+        def get_blocks(self):
+            return self._blocks
+
+    class DummyAlignmentFile:
+        def __init__(self, path, mode):
+            self.path = path
+            self.header = {'SQ': [{'SN': 'ENST00000111111', 'LN': 100}, {'SN': 'ENST00000999999', 'LN': 80}]}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def fetch(self, transcript_id, start, end):
+            if self.path == 'copd.bam' and transcript_id == 'ENST00000111111':
+                return [DummyRead([(5, 8)])]
+            if self.path == 'control.bam' and transcript_id == 'ENST00000111111':
+                return [DummyRead([(10, 12)])]
+            return []
+
+    monkeypatch.setattr(api, 'BAMParser', BAMParser)
+    monkeypatch.setattr(track_build, 'BAMParser', BAMParser)
+    monkeypatch.setattr('drvizer.bam_parser.pysam.AlignmentFile', DummyAlignmentFile)
+    monkeypatch.setattr('drvizer.bam_parser.os.path.exists', lambda path: True)
+
+    parser = (
+        DrViz()
+        .load_gtf(str(transcript_split_gtf))
+        .add_bam_track(
+            ['copd.bam', 'control.bam'],
+            label='Coverage',
+            color=['#f14432', '#4a98c9'],
+            alpha=[0.6, 0.6],
+            aggregate_method='mean',
+            transcript_coord=True,
+            split_by_transcript='nc',
+        )
+        .build()
+    )
+
+    payload = parser.data_source.get_transcript_data('gene1')
+    track = payload['prepared_tracks'][0]
+
+    assert 'series' not in track['data']
+    assert track['data']['y'][5:8].tolist() == [0.5, 0.5, 0.5]
+    assert track['data']['y'][10:12].tolist() == [0.5, 0.5]
+
+
 def test_mixed_genomic_and_split_transcript_tracks_preserve_genomic_coordinates(monkeypatch, transcript_split_gtf, tmp_bed_second):
     class DummyRead:
         def __init__(self, blocks):
