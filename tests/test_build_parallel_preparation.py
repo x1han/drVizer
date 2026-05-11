@@ -207,6 +207,78 @@ def test_build_applies_bam_per_file_color_and_alpha_lists(tmp_gtf, monkeypatch):
     assert track.file_alphas == [0.6, 0.4]
 
 
+def test_build_applies_bam_y_axis_group(tmp_gtf, monkeypatch):
+    viz = DrViz().load_gtf(str(tmp_gtf))
+
+    class FakeBamParser:
+        def __init__(self, bam_paths, track_label='BAM Coverage', contained_only=True,
+                     color='steelblue', y_axis_range=None, aggregate_method='sum',
+                     transcript_coord=False, gtf_parser=None):
+            self.bam_paths = [bam_paths] if isinstance(bam_paths, str) else list(bam_paths)
+            self.track_label = track_label
+            self.color = color
+            self.alpha = 0.6
+            self.y_axis_range = y_axis_range
+            self.aggregate_method = aggregate_method
+            self.parser_type = 'coverage'
+            self.transcript_coord = transcript_coord
+            self.gtf_parser = gtf_parser
+
+    monkeypatch.setattr("drvizer.api.BAMParser", FakeBamParser)
+    monkeypatch.setattr("drvizer._track_build.BAMParser", FakeBamParser)
+
+    viz.add_bam_track("reads.bam", label="Reads", y_axis_group="reads")
+
+    parser = viz.build()
+    track = parser.data_source.tracks[0]
+
+    assert track.y_axis_group == "reads"
+    payload = parser.data_source._build_track_entry(track, "coverage", {"x": [], "y": []}, 0)
+    assert payload["y_axis_group"] == "reads"
+
+
+def test_build_applies_score_bed_y_axis_group(tmp_gtf, tmp_bed, monkeypatch):
+    viz = DrViz().load_gtf(str(tmp_gtf))
+
+    def fake_parse_bed(self, chrom=None, start=None, end=None):
+        return {}
+
+    monkeypatch.setattr(BUILD_BED_PARSER, "parse_bed", fake_parse_bed)
+    monkeypatch.setattr("drvizer._track_build._is_process_safe_genomic_bed", lambda spec: False)
+
+    viz.add_bed_track(str(tmp_bed), label="m6A", parser_type="score", y_axis_group="m6A")
+
+    parser = viz.build()
+    track = parser.data_source.tracks[0]
+
+    assert track.y_axis_group == "m6A"
+    payload = parser.data_source._build_track_entry(track, "score", {}, 0)
+    assert payload["y_axis_group"] == "m6A"
+
+
+def test_build_applies_process_safe_score_bed_y_axis_group(tmp_gtf, tmp_bed, monkeypatch):
+    viz = DrViz().load_gtf(str(tmp_gtf))
+
+    def fake_parse_bed(self, chrom=None, start=None, end=None):
+        return {}
+
+    monkeypatch.setattr(BUILD_BED_PARSER, "parse_bed", fake_parse_bed)
+
+    viz.add_bed_track(str(tmp_bed), label="m6A", parser_type="score", y_axis_group="m6A")
+
+    parser = viz.build()
+    track = parser.data_source.tracks[0]
+
+    assert track.y_axis_group == "m6A"
+
+
+def test_add_bed_track_rejects_y_axis_group_for_distribution_tracks(tmp_gtf, tmp_bed):
+    viz = DrViz().load_gtf(str(tmp_gtf))
+
+    with pytest.raises(ValueError, match="y_axis_group requires a numeric y-axis track"):
+        viz.add_bed_track(str(tmp_bed), label="TE", y_axis_group="te")
+
+
 def test_build_makes_duplicate_track_labels_unique_in_registration_order(tmp_gtf, tmp_bed, tmp_bed_second, monkeypatch):
     viz = DrViz().load_gtf(str(tmp_gtf))
 

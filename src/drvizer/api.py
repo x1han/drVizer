@@ -86,6 +86,7 @@ class PreparedDataSource:
             'color': getattr(track, 'color', 'orange'),
             'alpha': getattr(track, 'alpha', 0.8),
             'y_axis_range': getattr(track, 'y_axis_range', None),
+            'y_axis_group': getattr(track, 'y_axis_group', None),
             'file_colors': getattr(track, 'file_colors', None),
             'file_alphas': getattr(track, 'file_alphas', None),
         }
@@ -246,6 +247,7 @@ class DrViz:
                       alpha: Union[float, List[float]] = 0.8,
                       parser_type: str = 'distribution',
                       y_axis_range: float = None,
+                      y_axis_group: str = None,
                       transcript_coord: bool = False,
                       **kwargs) -> 'DrViz':
         """Add one BED-backed track to the current visualization builder."""
@@ -258,6 +260,8 @@ class DrViz:
         alphas = [alpha] * len(files) if isinstance(alpha, (float, int)) else alpha
         split_by_transcript = kwargs.pop('split_by_transcript', None)
         _validate_split_by_transcript(split_by_transcript, transcript_coord)
+        if y_axis_group is not None and parser_type != 'score':
+            raise ValueError("y_axis_group requires a numeric y-axis track")
 
         if len(colors) != len(files) or len(alphas) != len(files):
             raise ValueError("Length of color and alpha lists must match number of BED files")
@@ -278,6 +282,7 @@ class DrViz:
                 'file_alphas': alphas,
                 'parser_type': parser_type,
                 'y_axis_range': y_axis_range,
+                'y_axis_group': y_axis_group,
                 'transcript_coord': transcript_coord,
                 'split_by_transcript': split_by_transcript,
                 'parser_kwargs': dict(kwargs),
@@ -287,6 +292,7 @@ class DrViz:
                 'color': resolved_color,
                 'alpha': resolved_alpha,
                 'type': parser_type,
+                'y_axis_group': y_axis_group,
                 'file_colors': colors,
                 'file_alphas': alphas,
             },
@@ -299,6 +305,7 @@ class DrViz:
                       alpha: Union[float, List[float]] = 0.6,
                       aggregate_method: str = 'sum',
                       y_axis_range: float = None,
+                      y_axis_group: str = None,
                       transcript_coord: bool = False,
                       **kwargs) -> 'DrViz':
         """Add one BAM-backed coverage track to the current visualization builder.
@@ -310,6 +317,7 @@ class DrViz:
             alpha: Transparency (0-1)
             aggregate_method: 'sum' or 'mean' for multiple BAM files
             y_axis_range: Fixed y-axis maximum (None for auto)
+            y_axis_group: Group name for shared automatic y-axis scaling
             transcript_coord: If True, treat BAM as transcript-aligned
         """
         if BAMParser is None:
@@ -340,6 +348,7 @@ class DrViz:
                 'file_alphas': alphas,
                 'aggregate_method': aggregate_method,
                 'y_axis_range': y_axis_range,
+                'y_axis_group': y_axis_group,
                 'transcript_coord': transcript_coord,
                 'split_by_transcript': split_by_transcript,
                 'parser_kwargs': dict(kwargs),
@@ -349,6 +358,7 @@ class DrViz:
                 'color': resolved_color,
                 'alpha': resolved_alpha,
                 'type': 'coverage',
+                'y_axis_group': y_axis_group,
                 'file_colors': colors,
                 'file_alphas': alphas,
             },

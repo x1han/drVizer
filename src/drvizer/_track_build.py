@@ -34,6 +34,7 @@ def _prepare_genomic_bed_track(spec):
     parser.alpha = spec["alpha"]
     parser.file_colors = list(spec["file_colors"])
     parser.file_alphas = list(spec["file_alphas"])
+    parser.y_axis_group = spec.get("y_axis_group")
     parser.prepare_track(None)
     return parser
 
@@ -61,6 +62,7 @@ def prepare_track(spec, gtf_parser):
         parser.alpha = spec["alpha"]
         parser.file_colors = list(spec["file_colors"])
         parser.file_alphas = list(spec["file_alphas"])
+        parser.y_axis_group = spec.get("y_axis_group")
         parser.prepare_track(gtf_parser)
         return parser
 
@@ -83,6 +85,7 @@ def prepare_track(spec, gtf_parser):
         parser.alpha = spec["alpha"]
         parser.file_colors = list(spec["file_colors"])
         parser.file_alphas = list(spec["file_alphas"])
+        parser.y_axis_group = spec.get("y_axis_group")
         if hasattr(parser, "prepare_track"):
             parser.prepare_track(gtf_parser)
         return parser

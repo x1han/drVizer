@@ -90,6 +90,61 @@ def _compute_track_layout(num_transcripts, prepared_tracks=None,
     }
 
 
+def _coverage_track_max(track_data):
+    series = track_data.get('series')
+    if series:
+        max_y = 0
+        for item in series:
+            y = item.get('y', [])
+            if len(y) > 0:
+                max_y = max(max_y, float(np.max(y)))
+        return max_y
+
+    y = track_data.get('y', [])
+    if len(y) == 0:
+        return 0
+    return float(np.max(y))
+
+
+def _score_track_max(track_data):
+    max_y = 0
+    for bed_elements in track_data.values():
+        for bed_element in bed_elements:
+            max_y = max(max_y, float(bed_element.get('score', 0.0)))
+    return max_y
+
+
+def _numeric_track_max(track):
+    track_kind = track.get('kind', 'distribution')
+    track_data = track.get('data', {})
+
+    if track_kind == 'coverage':
+        return _coverage_track_max(track_data)
+    if track_kind == 'score':
+        return _score_track_max(track_data)
+    return None
+
+
+def _shared_y_axis_limits(prepared_tracks):
+    group_maxima = {}
+    for track in prepared_tracks:
+        group = track.get('y_axis_group')
+        if not group or track.get('y_axis_range') is not None:
+            continue
+
+        track_max = _numeric_track_max(track)
+        if track_max is None:
+            continue
+
+        key = (track.get('transcript_id'), group)
+        group_maxima[key] = max(group_maxima.get(key, 0), track_max)
+
+    return {
+        key: (value * 1.1 if value > 0 else 1)
+        for key, value in group_maxima.items()
+    }
+
+
 def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse_order=False,
                               transcript_width=12, transcript_height=0.5, y_spacing=0.3,
                               bed_data=None, track_labels=None,
@@ -112,6 +167,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         matplotlib.figure.Figure: The generated figure
     """
     prepared_tracks = transcript_data.get('prepared_tracks', [])
+    shared_y_axis_limits = _shared_y_axis_limits(prepared_tracks)
 
     if 'track_labels' in transcript_data:
         effective_track_labels = transcript_data['track_labels']
@@ -278,6 +334,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         y_axis_range = track.get('y_axis_range')
         file_colors = track.get('file_colors') or [track_color]
         file_alphas = track.get('file_alphas') or [track_alpha]
+        shared_y_axis_limit = shared_y_axis_limits.get((track.get('transcript_id'), track.get('y_axis_group')))
         bed_height = transcript_height / 2.5
 
         if track_kind == 'coverage':
@@ -297,6 +354,8 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                         max_y = max(max_y, float(np.max(y)))
                 if y_axis_range:
                     ax_track.set_ylim(0, y_axis_range)
+                elif shared_y_axis_limit is not None:
+                    ax_track.set_ylim(0, shared_y_axis_limit)
                 else:
                     ax_track.set_ylim(0, max_y * 1.1 if max_y > 0 else 1)
             else:
@@ -309,6 +368,8 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     ax_track.plot(x, y, color=color, lw=0.7, alpha=min(alpha * 1.2, 1.0), zorder=4)
                     if y_axis_range:
                         ax_track.set_ylim(0, y_axis_range)
+                    elif shared_y_axis_limit is not None:
+                        ax_track.set_ylim(0, shared_y_axis_limit)
                     else:
                         ax_track.set_ylim(0, np.max(y) * 1.1 if len(y) > 0 else 1)
             ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
@@ -328,6 +389,8 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                                  color=color, edgecolor='none', linewidth=0, zorder=3, alpha=alpha)
             if y_axis_range:
                 ax_track.set_ylim(0, y_axis_range)
+            elif shared_y_axis_limit is not None:
+                ax_track.set_ylim(0, shared_y_axis_limit)
             ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
             ax_track.grid(True, axis='x', alpha=0.25)
         else:

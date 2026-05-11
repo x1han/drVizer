@@ -372,3 +372,157 @@ def test_reusable_parser_repeats_track_configs_for_each_prepared_track_label():
 
     assert [config["label"] for config in visible_configs] == ["TE", "Reads", "Reads", "m6A", "Reads"]
 
+
+def test_visualizer_shares_split_coverage_y_axis_within_each_transcript_group():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [1, 2]},
+            "label": "COPD Reads",
+            "transcript_id": "ENST00000111111",
+            "color": "#f14432",
+            "alpha": 1,
+            "y_axis_group": "reads",
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [3, 4]},
+            "label": "Control Reads",
+            "transcript_id": "ENST00000111111",
+            "color": "#4a98c9",
+            "alpha": 1,
+            "y_axis_group": "reads",
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [305, 306], "y": [10, 20]},
+            "label": "COPD Reads",
+            "transcript_id": "ENST00000999999",
+            "color": "#f14432",
+            "alpha": 1,
+            "y_axis_group": "reads",
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [305, 306], "y": [30, 40]},
+            "label": "Control Reads",
+            "transcript_id": "ENST00000999999",
+            "color": "#4a98c9",
+            "alpha": 1,
+            "y_axis_group": "reads",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 1},
+        {"transcript_id": "ENST00000999999", "start_index": 2, "end_index": 3},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+
+    assert fig.axes[1].get_ylim() == (0.0, 4.4)
+    assert fig.axes[2].get_ylim() == (0.0, 4.4)
+    assert fig.axes[3].get_ylim() == (0.0, 44.0)
+    assert fig.axes[4].get_ylim() == (0.0, 44.0)
+    plt.close(fig)
+
+
+def test_visualizer_keeps_different_y_axis_groups_independent():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [1, 2]},
+            "label": "Reads",
+            "transcript_id": "ENST00000111111",
+            "color": "steelblue",
+            "alpha": 1,
+            "y_axis_group": "reads",
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [10, 20]},
+            "label": "IP",
+            "transcript_id": "ENST00000111111",
+            "color": "purple",
+            "alpha": 1,
+            "y_axis_group": "ip",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 1},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+
+    assert fig.axes[1].get_ylim() == (0.0, 2.2)
+    assert fig.axes[2].get_ylim() == (0.0, 22.0)
+    plt.close(fig)
+
+
+def test_visualizer_shares_score_track_y_axis_group():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "score",
+            "data": {"peakA": [{"start": 105, "end": 115, "score": 0.2}]},
+            "label": "Control m6A",
+            "transcript_id": "ENST00000111111",
+            "color": "blue",
+            "alpha": 0.5,
+            "y_axis_group": "m6A",
+        },
+        {
+            "kind": "score",
+            "data": {"peakB": [{"start": 120, "end": 130, "score": 0.8}]},
+            "label": "COPD m6A",
+            "transcript_id": "ENST00000111111",
+            "color": "red",
+            "alpha": 0.5,
+            "y_axis_group": "m6A",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 1},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+
+    assert fig.axes[1].get_ylim() == (0.0, 0.8800000000000001)
+    assert fig.axes[2].get_ylim() == (0.0, 0.8800000000000001)
+    plt.close(fig)
+
+
+def test_visualizer_y_axis_range_overrides_y_axis_group():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [1, 2]},
+            "label": "Manual",
+            "transcript_id": "ENST00000111111",
+            "color": "steelblue",
+            "alpha": 1,
+            "y_axis_group": "reads",
+            "y_axis_range": 10,
+        },
+        {
+            "kind": "coverage",
+            "data": {"x": [105, 106], "y": [30, 40]},
+            "label": "Automatic",
+            "transcript_id": "ENST00000111111",
+            "color": "purple",
+            "alpha": 1,
+            "y_axis_group": "reads",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 1},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+
+    assert fig.axes[1].get_ylim() == (0.0, 10.0)
+    assert fig.axes[2].get_ylim() == (0.0, 44.0)
+    plt.close(fig)
+

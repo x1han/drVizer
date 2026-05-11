@@ -157,10 +157,20 @@ Common options for `add_bed_track(...)` and `add_bam_track(...)` include:
 - `transcript_coord`: treat the input as transcript-coordinate data
 - `split_by_transcript`: split transcript-coordinate tracks by transcript (`None`, `"nc"`, `"cn"`)
 - `y_axis_range`: fix the y-axis maximum instead of auto-scaling
+- `y_axis_group`: share automatic y-axis scaling across numeric tracks with the same group name
 
 BAM-specific options:
 
 - `aggregate_method`: combine multiple BAM files using `"sum"` or `"mean"`
+
+Numeric y-axis grouping:
+
+```python
+.add_bam_track(control_bams, label="Control Reads", aggregate_method="mean", y_axis_group="reads")
+.add_bam_track(treated_bams, label="Treated Reads", aggregate_method="mean", y_axis_group="reads")
+```
+
+For split transcript tracks, y-axis grouping is applied within each transcript, so matched groups remain visually comparable without forcing all transcripts to share one global scale.
 
 BED-specific options:
 
