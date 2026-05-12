@@ -207,6 +207,7 @@ def test_visualizer_renders_score_tracks_with_multiple_file_colors():
             "transcript_id": "ENST00000111111",
             "file_colors": ["gray", "gray", "blue", "red"],
             "file_alphas": [0.1, 0.1, 0.25, 0.25],
+            "layer_order": None,
         }
     ]
     transcript_data["right_label_groups"] = [
@@ -227,6 +228,142 @@ def test_visualizer_renders_score_tracks_with_multiple_file_colors():
         (0.0, 0.0, 1.0, 0.25),
         (1.0, 0.0, 0.0, 0.25),
     ]
+    plt.close(fig)
+
+
+def test_visualizer_sorts_score_track_layers_with_small_values_on_top_by_default():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "score",
+            "data": {
+                "peakA": [
+                    {"start": 105, "end": 115, "score": 0.1},
+                    {"start": 105, "end": 115, "score": 0.9},
+                    {"start": 105, "end": 115, "score": 0.4},
+                ]
+            },
+            "label": "m6A",
+            "transcript_id": "ENST00000111111",
+            "file_colors": ["blue", "red", "green"],
+            "file_alphas": [1, 1, 1],
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    patch_facecolors = [
+        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
+        for patch in ax.patches
+    ]
+
+    assert patch_facecolors == [
+        (1.0, 0.0, 0.0, 1.0),
+        (0.0, 0.502, 0.0, 1.0),
+        (0.0, 0.0, 1.0, 1.0),
+    ]
+    plt.close(fig)
+
+
+def test_visualizer_preserves_score_track_file_order_when_layer_order_is_none():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "score",
+            "data": {
+                "peakA": [
+                    {"start": 105, "end": 115, "score": 0.1},
+                    {"start": 105, "end": 115, "score": 0.9},
+                    {"start": 105, "end": 115, "score": 0.4},
+                ]
+            },
+            "label": "m6A",
+            "transcript_id": "ENST00000111111",
+            "file_colors": ["blue", "red", "green"],
+            "file_alphas": [1, 1, 1],
+            "layer_order": None,
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    patch_facecolors = [
+        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
+        for patch in ax.patches
+    ]
+
+    assert patch_facecolors == [
+        (0.0, 0.0, 1.0, 1.0),
+        (1.0, 0.0, 0.0, 1.0),
+        (0.0, 0.502, 0.0, 1.0),
+    ]
+    plt.close(fig)
+
+
+def test_visualizer_sorts_coverage_series_layers_with_small_values_on_top_by_default():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {
+                "series": [
+                    {"x": [105, 106], "y": [1, 1], "color": "blue", "alpha": 1},
+                    {"x": [105, 106], "y": [9, 9], "color": "red", "alpha": 1},
+                    {"x": [105, 106], "y": [4, 4], "color": "green", "alpha": 1},
+                ]
+            },
+            "label": "Reads",
+            "transcript_id": "ENST00000111111",
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    line_colors = [line.get_color() for line in ax.lines]
+
+    assert line_colors == ["red", "green", "blue"]
+    plt.close(fig)
+
+
+def test_visualizer_preserves_coverage_series_order_when_layer_order_is_none():
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {
+                "series": [
+                    {"x": [105, 106], "y": [1, 1], "color": "blue", "alpha": 1},
+                    {"x": [105, 106], "y": [9, 9], "color": "red", "alpha": 1},
+                    {"x": [105, 106], "y": [4, 4], "color": "green", "alpha": 1},
+                ]
+            },
+            "label": "Reads",
+            "transcript_id": "ENST00000111111",
+            "layer_order": None,
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    line_colors = [line.get_color() for line in ax.lines]
+
+    assert line_colors == ["blue", "red", "green"]
     plt.close(fig)
 
 

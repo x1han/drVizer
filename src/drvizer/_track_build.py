@@ -18,6 +18,14 @@ def _is_process_safe_genomic_bed(spec):
     return spec["kind"] == "bed" and not spec.get("transcript_coord", False)
 
 
+def _apply_common_track_settings(parser, spec):
+    parser.alpha = spec["alpha"]
+    parser.file_colors = list(spec["file_colors"])
+    parser.file_alphas = list(spec["file_alphas"])
+    parser.y_axis_group = spec.get("y_axis_group")
+    parser.layer_order = spec.get("layer_order", "ascending")
+
+
 def _prepare_genomic_bed_track(spec):
     parser_kwargs = dict(spec.get("parser_kwargs", {}))
     parser_kwargs.pop("split_by_transcript", None)
@@ -31,10 +39,7 @@ def _prepare_genomic_bed_track(spec):
         **parser_kwargs,
     )
     parser.color = spec["color"]
-    parser.alpha = spec["alpha"]
-    parser.file_colors = list(spec["file_colors"])
-    parser.file_alphas = list(spec["file_alphas"])
-    parser.y_axis_group = spec.get("y_axis_group")
+    _apply_common_track_settings(parser, spec)
     parser.prepare_track(None)
     return parser
 
@@ -59,10 +64,7 @@ def prepare_track(spec, gtf_parser):
             **parser_kwargs,
         )
         parser.color = spec["color"]
-        parser.alpha = spec["alpha"]
-        parser.file_colors = list(spec["file_colors"])
-        parser.file_alphas = list(spec["file_alphas"])
-        parser.y_axis_group = spec.get("y_axis_group")
+        _apply_common_track_settings(parser, spec)
         parser.prepare_track(gtf_parser)
         return parser
 
@@ -82,10 +84,7 @@ def prepare_track(spec, gtf_parser):
             gtf_parser=gtf_parser if spec.get("transcript_coord", False) else None,
             **parser_kwargs,
         )
-        parser.alpha = spec["alpha"]
-        parser.file_colors = list(spec["file_colors"])
-        parser.file_alphas = list(spec["file_alphas"])
-        parser.y_axis_group = spec.get("y_axis_group")
+        _apply_common_track_settings(parser, spec)
         if hasattr(parser, "prepare_track"):
             parser.prepare_track(gtf_parser)
         return parser

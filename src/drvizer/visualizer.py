@@ -11,6 +11,17 @@ import numpy as np
 from typing import Union, List
 
 
+def _ordered_by_layer_value(items, layer_order, value_getter):
+    if layer_order is None:
+        return items
+    return sorted(items, key=value_getter, reverse=layer_order == 'ascending')
+
+
+def _coverage_series_max(item):
+    y = item.get('y', [])
+    return float(np.max(y)) if len(y) > 0 else 0
+
+
 def _has_right_labels(prepared_tracks):
     """Check if right-side transcript labels should be rendered."""
     if not prepared_tracks:
@@ -341,7 +352,12 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
             series = track_data.get('series')
             if series:
                 max_y = 0
-                for item in series:
+                ordered_series = _ordered_by_layer_value(
+                    series,
+                    track.get('layer_order', 'ascending'),
+                    _coverage_series_max,
+                )
+                for item in ordered_series:
                     x = item.get('x', [])
                     y = item.get('y', [])
                     if len(x) == 0:
@@ -375,16 +391,33 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
             ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
             ax_track.grid(True, axis='x', alpha=0.25)
         elif track_kind == 'score':
+            layer_order = track.get('layer_order', 'ascending')
+            score_items = [] if layer_order is not None else None
             file_cycle = 0
             for _, bed_elements in track_data.items():
                 for bed_element in bed_elements:
-                    start = bed_element['start']
-                    end = bed_element['end']
-                    score = bed_element.get('score', 0.0)
                     color_idx = file_cycle % len(file_colors)
                     color = file_colors[color_idx]
                     alpha = file_alphas[color_idx]
                     file_cycle += 1
+                    if layer_order is None:
+                        start = bed_element['start']
+                        end = bed_element['end']
+                        score = bed_element.get('score', 0.0)
+                        ax_track.bar((start + end) / 2, score, width=end - start, bottom=0,
+                                     color=color, edgecolor='none', linewidth=0, zorder=3, alpha=alpha)
+                    else:
+                        score_items.append((bed_element, color, alpha))
+            if layer_order is not None:
+                score_items = _ordered_by_layer_value(
+                    score_items,
+                    layer_order,
+                    lambda item: item[0].get('score', 0.0),
+                )
+                for bed_element, color, alpha in score_items:
+                    start = bed_element['start']
+                    end = bed_element['end']
+                    score = bed_element.get('score', 0.0)
                     ax_track.bar((start + end) / 2, score, width=end - start, bottom=0,
                                  color=color, edgecolor='none', linewidth=0, zorder=3, alpha=alpha)
             if y_axis_range:

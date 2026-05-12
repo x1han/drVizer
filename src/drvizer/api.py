@@ -41,6 +41,11 @@ def _validate_split_by_transcript(split_by_transcript, transcript_coord):
         raise ValueError("split_by_transcript requires transcript_coord=True")
 
 
+def _validate_layer_order(layer_order):
+    if layer_order not in (None, 'ascending', 'descending'):
+        raise ValueError("layer_order must be None, 'ascending', or 'descending'")
+
+
 def _build_right_label_groups(prepared_tracks, start_index=0):
     groups = []
     index = start_index
@@ -89,6 +94,7 @@ class PreparedDataSource:
             'y_axis_group': getattr(track, 'y_axis_group', None),
             'file_colors': getattr(track, 'file_colors', None),
             'file_alphas': getattr(track, 'file_alphas', None),
+            'layer_order': getattr(track, 'layer_order', 'ascending'),
         }
         if transcript_id is not None:
             entry['transcript_id'] = transcript_id
@@ -249,6 +255,7 @@ class DrViz:
                       y_axis_range: float = None,
                       y_axis_group: str = None,
                       transcript_coord: bool = False,
+                      layer_order: str = 'ascending',
                       **kwargs) -> 'DrViz':
         """Add one BED-backed track to the current visualization builder."""
         if label is None:
@@ -260,6 +267,7 @@ class DrViz:
         alphas = [alpha] * len(files) if isinstance(alpha, (float, int)) else alpha
         split_by_transcript = kwargs.pop('split_by_transcript', None)
         _validate_split_by_transcript(split_by_transcript, transcript_coord)
+        _validate_layer_order(layer_order)
         if y_axis_group is not None and parser_type != 'score':
             raise ValueError("y_axis_group requires a numeric y-axis track")
 
@@ -285,6 +293,7 @@ class DrViz:
                 'y_axis_group': y_axis_group,
                 'transcript_coord': transcript_coord,
                 'split_by_transcript': split_by_transcript,
+                'layer_order': layer_order,
                 'parser_kwargs': dict(kwargs),
             },
             {
@@ -307,6 +316,7 @@ class DrViz:
                       y_axis_range: float = None,
                       y_axis_group: str = None,
                       transcript_coord: bool = False,
+                      layer_order: str = 'ascending',
                       **kwargs) -> 'DrViz':
         """Add one BAM-backed coverage track to the current visualization builder.
 
@@ -328,6 +338,7 @@ class DrViz:
         alphas = [alpha] * len(files) if isinstance(alpha, (float, int)) else alpha
         split_by_transcript = kwargs.pop('split_by_transcript', None)
         _validate_split_by_transcript(split_by_transcript, transcript_coord)
+        _validate_layer_order(layer_order)
         if len(colors) != len(files) or len(alphas) != len(files):
             raise ValueError("Length of color and alpha lists must match number of BAM files")
 
@@ -351,6 +362,7 @@ class DrViz:
                 'y_axis_group': y_axis_group,
                 'transcript_coord': transcript_coord,
                 'split_by_transcript': split_by_transcript,
+                'layer_order': layer_order,
                 'parser_kwargs': dict(kwargs),
             },
             {
