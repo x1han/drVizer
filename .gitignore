@@ -160,9 +160,12 @@ logs/
 src/drvizer/_cython_*.c
 
 # Local-only repository files
+.claude/
 CLAUDE.md
 test_api_fix.py
 test_transcript_list.py
 plan/
 .worktrees/
 docs/superpowers/
+.gitnexus
+AGENTS.md

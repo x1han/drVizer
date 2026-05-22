@@ -3,7 +3,7 @@ import pytest
 
 import drvizer.api as api
 import drvizer._track_build as track_build
-from drvizer.api import DrViz
+from drvizer.api import DrViz, PreparedDataSource
 from drvizer.bam_parser import BAMParser
 from drvizer.bed_parser import BEDParser
 
@@ -109,6 +109,38 @@ def test_add_bam_track_preserves_per_file_color_and_alpha_lists(transcript_split
     assert spec["file_alphas"] == [0.6, 0.4]
     assert config["color"] == "steelblue"
     assert config["alpha"] == 0.6
+
+
+def test_split_by_transcript_rejects_multiple_genes(tmp_path):
+    gtf_path = tmp_path / "multi_gene.gtf"
+    gtf_path.write_text(
+        'chr1\ttest\texon\t100\t149\t.\t+\t.\tgene_id "gene1"; transcript_id "tx1"; gene_name "GENE1";\n'
+        'chr1\ttest\texon\t200\t249\t.\t+\t.\tgene_id "gene2"; transcript_id "tx2"; gene_name "GENE2";\n'
+    )
+
+    viz = (
+        DrViz()
+        .load_gtf(str(gtf_path))
+        .add_bam_track("fake.bam", transcript_coord=True, split_by_transcript="nc")
+        .build()
+    )
+
+    with pytest.raises(ValueError, match="split_by_transcript does not support multiple genes"):
+        viz.data_source.get_transcript_data(["gene1", "gene2"])
+
+
+def test_split_by_transcript_multiple_genes_rejected_before_gtf_lookup():
+    class FailingGTFParser:
+        def get_transcript_data(self, gene_identifier):
+            raise AssertionError("GTF lookup should not run for unsupported split multi-gene input")
+
+    class SplitTrack:
+        split_by_transcript = "nc"
+
+    data_source = PreparedDataSource(FailingGTFParser(), tracks=[SplitTrack()])
+
+    with pytest.raises(ValueError, match="split_by_transcript does not support multiple genes"):
+        data_source.get_transcript_data(["gene1", "gene2"])
 
 
 def test_split_by_transcript_none_preserves_legacy_track_behavior(transcript_split_gtf, transcript_split_bed_a):

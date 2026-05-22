@@ -77,7 +77,7 @@ class BAMParser:
         return x, total_coverage
 
     def _get_coverage_in_region_serial(self, chrom, start, end):
-        total_coverage = np.zeros(end - start, dtype=np.int32)
+        total_coverage = np.zeros(end - start, dtype=np.int64)
 
         for path in self.bam_paths:
             total_coverage += compute_region_coverage(
@@ -99,7 +99,7 @@ class BAMParser:
             return np.array([]), np.array([])
 
         region_len = region_end - region_start
-        coverage = np.zeros(region_len, dtype=np.int32)
+        coverage = np.zeros(region_len, dtype=np.int64)
         transcript_id = transcript_info['transcript_id']
 
         with pysam.AlignmentFile(bam_path, "rb") as sam:
@@ -150,7 +150,7 @@ class BAMParser:
         if not series:
             return np.array([]), np.array([])
 
-        coverage = np.zeros_like(series[0]['y'], dtype=np.float64 if self.aggregate_method == 'mean' else np.int32)
+        coverage = np.zeros_like(series[0]['y'], dtype=np.float64 if self.aggregate_method == 'mean' else np.int64)
         for item in series:
             coverage += item['y']
 
@@ -232,7 +232,7 @@ class BAMParser:
             return np.array([]), np.array([])
 
         region_len = region_end - region_start
-        coverage = np.zeros(region_len, dtype=np.int32)
+        coverage = np.zeros(region_len, dtype=np.int64)
 
         for path in self.bam_paths:
             with pysam.AlignmentFile(path, "rb") as sam:

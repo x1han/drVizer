@@ -136,6 +136,8 @@ class PreparedDataSource:
 
     def get_transcript_data(self, gene_identifier, transcript_to_show=None):
         identifiers = [gene_identifier] if isinstance(gene_identifier, str) else gene_identifier
+        if len(identifiers) > 1 and any(getattr(track, 'split_by_transcript', None) is not None for track in self.tracks):
+            raise ValueError("split_by_transcript does not support multiple genes")
         first_gene_data = self.gtf_parser.get_transcript_data(identifiers[0])
         combined_gene_data = first_gene_data.copy()
         all_transcripts = first_gene_data['transcripts'].copy()

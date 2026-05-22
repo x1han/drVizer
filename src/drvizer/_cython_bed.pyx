@@ -11,7 +11,7 @@ cdef inline int _parse_optional_int_text(const char* text, int text_len, int def
     if text_len == 0:
         return default_value
     value = strtol(text, &endptr, 10)
-    if endptr == text or endptr[0] != 0:
+    if endptr == text or endptr != text + text_len:
         return default_value
     return <int>value
 
@@ -22,7 +22,7 @@ cdef inline object _parse_optional_float_text(const char* text, int text_len, ob
     if text_len == 0:
         return default_value
     value = strtod(text, &endptr)
-    if endptr == text or endptr[0] != 0:
+    if endptr == text or endptr != text + text_len:
         return default_value
     return value
 
@@ -66,7 +66,7 @@ cdef inline object _build_record_from_line(bytes line_bytes):
         ends[field_count] = length
     field_count += 1
 
-    if field_count < 4:
+    if field_count < 3:
         return None
 
     start = _parse_optional_int_text(buffer + starts[1], <int>(ends[1] - starts[1]), -1)
@@ -104,8 +104,8 @@ def _record_in_region(record, region):
     chrom, start, end = region
     return not (
         record['chrom'] != chrom or
-        record['end'] < start or
-        record['start'] > end
+        record['end'] <= start or
+        record['start'] >= end
     )
 
 

@@ -7,7 +7,7 @@ def _is_comment_or_blank(line):
 
 
 def _parse_bed_fields(parts):
-    if len(parts) < 4:
+    if len(parts) < 3:
         return None
 
     record = {}
@@ -50,16 +50,20 @@ def _parse_bed_fields(parts):
     return record
 
 
+def _record_overlaps_region(record_chrom, record_start, record_end, chrom, start, end):
+    return not (
+        record_chrom != chrom or
+        record_end <= start or
+        record_start >= end
+    )
+
+
 def _record_in_region(record, region):
     if region is None:
         return True
 
     chrom, start, end = region
-    return not (
-        record['chrom'] != chrom or
-        record['end'] < start or
-        record['start'] > end
-    )
+    return _record_overlaps_region(record['chrom'], record['start'], record['end'], chrom, start, end)
 
 
 def _open_text_file(bed_file_path, mode='rt'):
@@ -239,7 +243,7 @@ class BEDParser:
         anno_in_region = []
         if chrom in self.anno_data:
             for anno in self.anno_data[chrom]:
-                if anno['end'] >= start and anno['start'] <= end:
+                if _record_in_region(anno, (chrom, start, end)):
                     anno_in_region.append(anno)
 
         return anno_in_region
@@ -316,7 +320,7 @@ class BEDParser:
                 if anno_start > anno_end:
                     anno_start, anno_end = anno_end, anno_start
 
-                if anno_end >= start and anno_start <= end:
+                if _record_overlaps_region(chrom, anno_start, anno_end, chrom, start, end):
                     name = anno['name']
                     if name not in grouped_anno:
                         grouped_anno[name] = []

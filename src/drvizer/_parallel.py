@@ -10,7 +10,7 @@ class ParallelCoverageError(RuntimeError):
 
 def compute_region_coverage(path, chrom, start, end, contained_only=True):
     region_len = end - start
-    coverage = np.zeros(region_len, dtype=np.int32)
+    coverage = np.zeros(region_len, dtype=np.int64)
 
     with pysam.AlignmentFile(path, "rb") as sam:
         for read in sam.fetch(chrom, start, end):
@@ -36,18 +36,22 @@ def aggregate_region_coverages_parallel(bam_paths, chrom, start, end, contained_
         return compute_region_coverage(bam_paths[0], chrom, start, end, contained_only)
 
     try:
-        with multiprocessing.Pool(processes=len(bam_paths)) as pool:
-            coverages = pool.map(
+        try:
+            cpu_count = multiprocessing.cpu_count()
+        except NotImplementedError:
+            cpu_count = 1
+        worker_count = min(len(bam_paths), cpu_count, 32)
+        total_coverage = np.zeros(end - start, dtype=np.int64)
+        with multiprocessing.Pool(processes=worker_count) as pool:
+            for coverage in pool.imap_unordered(
                 _compute_region_coverage,
                 [
                     (path, chrom, start, end, contained_only)
                     for path in bam_paths
                 ],
-            )
+            ):
+                total_coverage += coverage.astype(np.int64, copy=False)
     except (OSError, ValueError) as exc:
         raise ParallelCoverageError(str(exc)) from exc
 
-    total_coverage = np.zeros(end - start, dtype=np.int32)
-    for coverage in coverages:
-        total_coverage += coverage
     return total_coverage

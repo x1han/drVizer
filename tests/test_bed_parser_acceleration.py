@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import drvizer.bed_parser as bed_parser
 from drvizer.bed_parser import BEDParser
 
 
@@ -212,6 +213,96 @@ def test_cython_and_python_paths_report_same_gzip_decode_error_message(tmp_path,
     parser = BEDParser(str(bad_gzip_path))
     with pytest.raises(ValueError, match=rf"^Error reading BED file {Path(str(bad_gzip_path))}: .*Not a gzipped file"):
         parser.parse_bed()
+
+
+def test_parse_bed_accepts_bed3_records(tmp_path, monkeypatch):
+    bed_path = tmp_path / "bed3.bed"
+    bed_path.write_text("chr1\t10\t20\n")
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", False)
+
+    parser = BEDParser(str(bed_path))
+    result = parser.parse_bed()
+
+    assert result == {
+        "chr1": [
+            {
+                "chrom": "chr1",
+                "start": 10,
+                "end": 20,
+                "name": ".",
+                "score": 0.0,
+                "strand": ".",
+                "thickStart": 10,
+                "thickEnd": 20,
+                "itemRgb": "0",
+            }
+        ]
+    }
+
+
+def test_parse_bed_region_filter_uses_half_open_boundaries(tmp_path, monkeypatch):
+    bed_path = tmp_path / "half_open.bed"
+    bed_path.write_text("chr1\t0\t100\tleft\nchr1\t100\t200\tmid\nchr1\t200\t300\tright\n")
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", False)
+
+    parser = BEDParser(str(bed_path))
+    result = parser.parse_bed(chrom="chr1", start=100, end=200)
+
+    assert [record["name"] for record in result["chr1"]] == ["mid"]
+
+
+def test_get_grouped_anno_in_region_uses_half_open_boundaries(tmp_path, monkeypatch):
+    bed_path = tmp_path / "grouped_half_open.bed"
+    bed_path.write_text("chr1\t0\t100\tleft\nchr1\t100\t200\tmid\nchr1\t200\t300\tright\n")
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", False)
+
+    parser = BEDParser(str(bed_path))
+    grouped = parser.get_grouped_anno_in_region("chr1", 100, 200)
+
+    assert sorted(grouped) == ["mid"]
+
+
+def test_cython_fast_path_accepts_bed3_records(tmp_path):
+    if not bed_parser._CYTHON_BED_AVAILABLE:
+        pytest.skip("Cython BED parser unavailable")
+
+    bed_path = tmp_path / "cython_bed3.bed"
+    bed_path.write_text("chr1\t10\t20\n")
+
+    parser = BEDParser(str(bed_path))
+    result = parser.parse_bed()
+
+    assert result == {
+        "chr1": [
+            {
+                "chrom": "chr1",
+                "start": 10,
+                "end": 20,
+                "name": ".",
+                "score": 0.0,
+                "strand": ".",
+                "thickStart": 10,
+                "thickEnd": 20,
+                "itemRgb": "0",
+            }
+        ]
+    }
+
+
+def test_cython_fast_path_region_filter_uses_half_open_boundaries(tmp_path):
+    if not bed_parser._CYTHON_BED_AVAILABLE:
+        pytest.skip("Cython BED parser unavailable")
+
+    bed_path = tmp_path / "cython_half_open.bed"
+    bed_path.write_text("chr1\t0\t100\tleft\nchr1\t100\t200\tmid\nchr1\t200\t300\tright\n")
+
+    parser = BEDParser(str(bed_path))
+    result = parser.parse_bed(chrom="chr1", start=100, end=200)
+
+    assert [record["name"] for record in result["chr1"]] == ["mid"]
 
 
 def test_parse_bed_region_filter_accepts_zero_start(tmp_path, monkeypatch):
