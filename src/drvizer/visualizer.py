@@ -52,6 +52,19 @@ def _bake_alpha_into_colors(colors, alphas):
     return baked
 
 
+def _apply_axis_style(ax, *, grid=True, plain_x=True):
+    """Apply the standard visualizer axis style.
+
+    Centralizes the tick_params + grid + ticklabel_format boilerplate so
+    every track-kind branch emits identical axis styling. VIZ-008 helper.
+    """
+    ax.tick_params(axis='y', which='major', labelsize=8, pad=2)
+    if grid:
+        ax.grid(True, axis='x', alpha=0.25)
+    if plain_x:
+        ax.ticklabel_format(axis='x', style='plain', useOffset=False)
+
+
 def _coverage_series_max(item):
     y = item.get('y', [])
     return float(np.max(y)) if len(y) > 0 else 0
@@ -137,14 +150,21 @@ def _compute_track_layout(num_transcripts, prepared_tracks=None,
 
 
 def _coverage_track_max(track_data):
+    """Vectorized max over coverage series / array.
+
+    VIZ-014: concatenate all y-arrays into one numpy array and call
+    np.max once instead of looping with max(...) per series. The legacy
+    loop accumulated one Python-level max() per series and was O(N*M)
+    for N series of length M; the vectorized path is O(N*M) numpy
+    internal but uses one Python call site.
+    """
     series = track_data.get('series')
     if series:
-        max_y = 0
-        for item in series:
-            y = item.get('y', [])
-            if len(y) > 0:
-                max_y = max(max_y, float(np.max(y)))
-        return max_y
+        arrays = [np.asarray(item.get('y', []), dtype=float) for item in series]
+        arrays = [arr for arr in arrays if arr.size > 0]
+        if not arrays:
+            return 0
+        return float(np.max(np.concatenate(arrays)))
 
     y = track_data.get('y', [])
     if len(y) == 0:
@@ -153,11 +173,19 @@ def _coverage_track_max(track_data):
 
 
 def _score_track_max(track_data):
-    max_y = 0
-    for bed_elements in track_data.values():
-        for bed_element in bed_elements:
-            max_y = max(max_y, float(bed_element.get('score', 0.0)))
-    return max_y
+    """Vectorized max over score track scores.
+
+    VIZ-014: collect all scores into one numpy array and call np.max
+    once instead of looping with max(...) per element.
+    """
+    scores = [
+        bed_element.get('score', 0.0)
+        for bed_elements in track_data.values()
+        for bed_element in bed_elements
+    ]
+    if not scores:
+        return 0
+    return float(np.max(np.asarray(scores, dtype=float)))
 
 
 def _numeric_track_max(track):
@@ -415,9 +443,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
 
         ax_gtf.set_yticks(transcript_y_positions)
         ax_gtf.set_yticklabels(truncated_labels)
-        ax_gtf.tick_params(axis='y', which='major', labelsize=8, pad=2)
-        ax_gtf.grid(True, axis='x', alpha=0.25)
-        ax_gtf.ticklabel_format(axis='x', style='plain', useOffset=False)
+        _apply_axis_style(ax_gtf)
 
         if effective_track_labels and len(effective_track_labels) > 0:
             ax_gtf.set_ylabel(effective_track_labels[0], fontsize=10)
@@ -462,7 +488,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 transform=ax_track.transAxes,
                 color='gray', fontsize=8,
             )
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
+            _apply_axis_style(ax_track, grid=False)
             continue
 
         if track_kind == 'coverage':
@@ -509,8 +535,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                         ax_track.set_ylim(0, shared_y_axis_limit)
                     else:
                         ax_track.set_ylim(0, np.max(y) * 1.1 if len(y) > 0 else 1)
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
-            ax_track.grid(True, axis='x', alpha=0.25)
+            _apply_axis_style(ax_track, plain_x=False)
         elif track_kind == 'score':
             layer_order = track.get('layer_order', 'ascending')
             # P1-13: batched ax.bar — build per-element lists and call ax.bar
@@ -569,8 +594,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 # silently clipped. Floor at 1.0 to keep empty / zero-score
                 # tracks from collapsing to a zero-height axis.
                 ax_track.set_ylim(0, max(_score_track_max(track_data) * 1.1, 1.0))
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
-            ax_track.grid(True, axis='x', alpha=0.25)
+            _apply_axis_style(ax_track, plain_x=False)
         else:
             bed_names = list(track_data.keys())
             num_bed_names = len(bed_names)
@@ -632,9 +656,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 first_element_y = num_bed_names - 0.5 + top_margin
                 last_element_y = 1 - 0.5 + top_margin
                 ax_track.set_ylim(last_element_y - 0.3, first_element_y + 0.3)
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
-            ax_track.grid(True, axis='x', alpha=0.25)
-            ax_track.ticklabel_format(axis='x', style='plain', useOffset=False)
+            _apply_axis_style(ax_track)
 
     axes[-1].set_xlabel(f'Genomic Position ({transcript_data["seqname"]})' if 'seqname' in transcript_data else 'Genomic Position', fontsize=10)
 
