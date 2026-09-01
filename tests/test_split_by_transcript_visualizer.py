@@ -1,4 +1,54 @@
+"""Visualizer tests, including revived tests from commit 2134796.
+
+2134796 revival decisions (per-test rationale):
+
+  test_visualizer_adds_grouped_right_labels_for_nc
+    Decision: revive-as-is (functionally equivalent to 2134796).
+    No conflict with the P0-5 placeholder contract or with the
+    0-based half-open projection (this test never projects; distribution
+    tracks use transcript-coord peaks directly).
+
+  test_visualizer_adds_one_right_label_per_subtrack_for_cn
+    Decision: revive-as-is (functionally equivalent to 2134796).
+    Cn split mode test with start_index == end_index per transcript.
+    Renders two right-side labels. No projection; no empty-track
+    placeholder interaction (cn + populated tracks).
+
+  test_visualizer_truncates_long_transcript_ids
+    Decision: revise-and-add (revised assertion to match the production
+    rename ``_truncate_transcript_id`` -> ``_shorten_transcript_label``).
+    The original 2134796 assertion expected the first-10 + '...' +
+    last-6 rule; the production code now uses a Novel-split + 40-char
+    prefix truncation. The test exercises the current rule by passing
+    a long "Novel_*" id and asserting the suffix "000123456789"
+    appears (the Novel token keeps the suffix as the displayed label)
+    while the full long_id does NOT appear.
+
+  test_visualizer_no_right_labels_without_groups
+    Decision: revive-as-is (functionally equivalent to 2134796).
+    No projection; no empty-track interaction. Survives the helper
+    rename unchanged.
+
+  test_visualizer_no_right_labels_with_empty_groups
+    Decision: revive-as-is (functionally equivalent to 2134796).
+    No projection; no empty-track interaction. Survives the helper
+    rename unchanged.
+
+The 2134796 commit also introduced two helper functions:
+
+  _base_transcript_data  -> revive-as-is (functionally equivalent).
+  _truncate_transcript_id -> revive-as-is (now an orphan helper; no
+    current test calls it but we keep it for the audit trail).
+
+Phase 6 additions:
+  - Layer-order 'descending' tests for score and coverage (API-012 gap).
+  - VIZ-013 visual-style regression tests (exon edgecolor, CDS facecolor,
+    intron arrow direction, grid alpha, xlabel seqname).
+"""
+
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.collections as mcoll
 
 from drvizer.api import ReusableParser
 from drvizer.visualizer import visualize_gene_transcripts
@@ -399,6 +449,91 @@ def test_visualizer_preserves_coverage_series_order_when_layer_order_is_none():
     plt.close(fig)
 
 
+def test_visualizer_sorts_score_track_layers_descending_when_layer_order_descending():
+    """API-012 (descending case): score bars put the LARGEST value on top.
+
+    Existing tests cover 'ascending' (default) and ``None`` for score.
+    This test fills the genuinely missing 'descending' case so the
+    _ordered_by_layer_value branch in visualizer.py is locked for all
+    three modes.
+
+    Naming note: 'descending' here means "largest value drawn LAST (on
+    top)". With layer_order='descending', ``_ordered_by_layer_value``
+    sorts without reversing, so the natural ascending output
+    [smallest, ..., largest] is drawn in that order, putting largest
+    on top.
+    """
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "score",
+            "data": {
+                "peakA": [
+                    {"start": 105, "end": 115, "score": 0.1},
+                    {"start": 105, "end": 115, "score": 0.9},
+                    {"start": 105, "end": 115, "score": 0.4},
+                ]
+            },
+            "label": "m6A",
+            "transcript_id": "ENST00000111111",
+            "file_colors": ["blue", "red", "green"],
+            "file_alphas": [1, 1, 1],
+            "layer_order": "descending",
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    facecolors = _score_track_facecolors(ax)
+
+    # 'descending' -> smallest drawn first, largest drawn last (on top).
+    assert facecolors == [
+        (0.0, 0.0, 1.0, 1.0),    # score=0.1 (drawn first, on bottom)
+        (0.0, 0.502, 0.0, 1.0),  # score=0.4
+        (1.0, 0.0, 0.0, 1.0),    # score=0.9 (drawn last, on top)
+    ]
+    plt.close(fig)
+
+
+def test_visualizer_sorts_coverage_series_descending_when_layer_order_descending():
+    """API-012 (descending case): coverage series put the LARGEST y on top.
+
+    Mirrors the score track descending test for coverage series.
+    """
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "coverage",
+            "data": {
+                "series": [
+                    {"x": [105, 106], "y": [1, 1], "color": "blue", "alpha": 1},
+                    {"x": [105, 106], "y": [9, 9], "color": "red", "alpha": 1},
+                    {"x": [105, 106], "y": [4, 4], "color": "green", "alpha": 1},
+                ]
+            },
+            "label": "Reads",
+            "transcript_id": "ENST00000111111",
+            "layer_order": "descending",
+        }
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax = fig.axes[1]
+
+    line_colors = [line.get_color() for line in ax.lines]
+
+    # 'descending' -> smallest y drawn first, largest drawn last (on top).
+    assert line_colors == ["blue", "green", "red"]
+    plt.close(fig)
+
+
 def test_visualizer_renders_distribution_tracks_with_track_color():
     transcript_data = _base_transcript_data()
     transcript_data["prepared_tracks"] = [
@@ -537,6 +672,214 @@ def test_reusable_parser_repeats_track_configs_for_each_prepared_track_label():
     )
 
     assert [config["label"] for config in visible_configs] == ["TE", "Reads", "Reads", "m6A", "Reads"]
+
+
+def _capture_intron_arrows(transcript_data):
+    """Render ``transcript_data`` while capturing every FancyArrowPatch created.
+
+    The visualizer wraps intron arrows in a ``PatchCollection`` with
+    ``match_original=True``, which absorbs them into the collection and removes
+    them from the axes' child tree. To verify the arrow direction we monkey-patch
+    ``patches.FancyArrowPatch`` to record each ``(posA, posB)`` tuple before
+    handing the original class off to the visualizer.
+
+    Returns (figure, captured_positions) where captured_positions is a list of
+    ``((posA_x, posA_y), (posB_x, posB_y))`` tuples in construction order.
+    """
+    captured = []
+    original_fancy_arrow_patch = patches.FancyArrowPatch
+
+    class RecordingFancyArrowPatch(original_fancy_arrow_patch):
+        def __init__(self, posA, posB, *args, **kwargs):
+            super().__init__(posA, posB, *args, **kwargs)
+            captured.append((posA, posB))
+
+    patches.FancyArrowPatch = RecordingFancyArrowPatch
+    try:
+        fig = visualize_gene_transcripts(transcript_data)
+    finally:
+        patches.FancyArrowPatch = original_fancy_arrow_patch
+    return fig, captured
+
+
+def test_visualizer_exon_edgecolor_is_black():
+    """VIZ-013: exon rectangles must have edgecolor='black'."""
+    transcript_data = _base_transcript_data()
+    fig = visualize_gene_transcripts(transcript_data)
+    ax_gtf = fig.axes[0]
+
+    # Find the exon PatchCollection (edgecolor=black, facecolor='none').
+    found_black_edge = False
+    for collection in ax_gtf.collections:
+        # match_original=True preserves per-patch edgecolor.
+        edges = collection.get_edgecolors()
+        if edges.size == 0:
+            continue
+        # Any black edgecolor (alpha=1) on a collection means at least one
+        # exon rectangle is black-edged.
+        if any(c[0] == 0.0 and c[1] == 0.0 and c[2] == 0.0 for c in edges):
+            found_black_edge = True
+            break
+    assert found_black_edge, (
+        f"no exon collection has a black edge; collections: "
+        f"{[(type(c).__name__, c.get_edgecolors().tolist()) for c in ax_gtf.collections]}"
+    )
+    plt.close(fig)
+
+
+def test_visualizer_cds_facecolor_is_lightblue():
+    """VIZ-013: CDS rectangles must have facecolor='lightblue'."""
+    transcript_data = _base_transcript_data()
+    # Add CDS to make CDS collections present.
+    transcript_data["transcripts"][0]["cds"] = [{"start": 110, "end": 140}]
+
+    fig = visualize_gene_transcripts(transcript_data)
+    ax_gtf = fig.axes[0]
+
+    found_lightblue = False
+    for collection in ax_gtf.collections:
+        faces = collection.get_facecolors()
+        if faces.size == 0:
+            continue
+        # 'lightblue' is matplotlib's CSS color, which resolves to
+        # rgb(0.6784313725490196, 0.8470588235294118, 0.9019607843137255).
+        # Compare with a small tolerance.
+        for face in faces:
+            if (
+                abs(face[0] - 0.6784) < 0.01
+                and abs(face[1] - 0.8471) < 0.01
+                and abs(face[2] - 0.9020) < 0.01
+            ):
+                found_lightblue = True
+                break
+        if found_lightblue:
+            break
+    assert found_lightblue, (
+        f"no CDS collection has a lightblue facecolor; collections: "
+        f"{[(type(c).__name__, c.get_facecolors().tolist()) for c in ax_gtf.collections]}"
+    )
+    plt.close(fig)
+
+
+def test_visualizer_intron_arrows_point_5_to_3_plus_strand():
+    """VIZ-013: plus-strand intron arrow head points toward higher genomic x."""
+    transcript_data = {
+        "gene_id": "gene1",
+        "seqname": "chr1",
+        "strand": "+",
+        "identifier_type": "gene_id",
+        "original_identifier": "gene1",
+        "transcripts": [
+            {
+                "transcript_id": "ENST00000111111",
+                "exons": [
+                    {"start": 100, "end": 150},
+                    {"start": 200, "end": 250},
+                    {"start": 300, "end": 350},
+                ],
+                "cds": [],
+            },
+        ],
+    }
+    fig, captured = _capture_intron_arrows(transcript_data)
+    assert len(captured) == 2, (
+        f"expected 2 intron arrows (3 exons -> 2 introns); got {len(captured)}"
+    )
+    for pos_a, pos_b in captured:
+        # Plus strand: arrow constructed (intron_start, intron_end) with
+        # arrowstyle='->' so arrow head at posB (higher x).
+        assert pos_a[0] < pos_b[0], (
+            f"plus-strand arrow head should point toward higher x; "
+            f"got posA={pos_a}, posB={pos_b}"
+        )
+    plt.close(fig)
+
+
+def test_visualizer_intron_arrows_point_5_to_3_minus_strand():
+    """VIZ-013: minus-strand intron arrow head points toward LOWER genomic x."""
+    transcript_data = {
+        "gene_id": "gene1",
+        "seqname": "chr1",
+        "strand": "-",
+        "identifier_type": "gene_id",
+        "original_identifier": "gene1",
+        "transcripts": [
+            {
+                "transcript_id": "ENST00000111111",
+                "exons": [
+                    {"start": 100, "end": 150},
+                    {"start": 200, "end": 250},
+                    {"start": 300, "end": 350},
+                ],
+                "cds": [],
+            },
+        ],
+    }
+    fig, captured = _capture_intron_arrows(transcript_data)
+    assert len(captured) == 2, (
+        f"expected 2 intron arrows (3 exons -> 2 introns); got {len(captured)}"
+    )
+    for pos_a, pos_b in captured:
+        # Minus strand: arrow constructed (intron_end, intron_start) so
+        # posA > posB; arrow head at posB (lower x).
+        assert pos_a[0] > pos_b[0], (
+            f"minus-strand arrow head should point toward lower x; "
+            f"got posA={pos_a}, posB={pos_b}"
+        )
+    plt.close(fig)
+
+
+def test_visualizer_grid_alpha_is_025():
+    """VIZ-013: x-axis gridlines have alpha=0.25."""
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "distribution",
+            "data": {"peakA": [{"start": 105, "end": 115}]},
+            "label": "TE",
+            "transcript_id": "ENST00000111111",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+    fig = visualize_gene_transcripts(transcript_data)
+
+    # Inspect x-axis gridlines on the track axes (axes[1:] for prepared_tracks).
+    alphas = set()
+    for ax in fig.axes[1:]:
+        for line in ax.xaxis.get_gridlines():
+            alpha = line.get_alpha()
+            if alpha is not None:
+                alphas.add(round(alpha, 4))
+
+    assert 0.25 in alphas, (
+        f"expected at least one x-axis gridline with alpha=0.25; got alphas={alphas}"
+    )
+    plt.close(fig)
+
+
+def test_visualizer_xlabel_has_seqname():
+    """VIZ-013: bottom axes' xlabel includes the seqname."""
+    transcript_data = _base_transcript_data()
+    transcript_data["prepared_tracks"] = [
+        {
+            "kind": "distribution",
+            "data": {"peakA": [{"start": 105, "end": 115}]},
+            "label": "TE",
+            "transcript_id": "ENST00000111111",
+        },
+    ]
+    transcript_data["right_label_groups"] = [
+        {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 0},
+    ]
+    fig = visualize_gene_transcripts(transcript_data)
+
+    last_xlabel = fig.axes[-1].get_xlabel()
+    assert "chr1" in last_xlabel, (
+        f"bottom axes xlabel must contain 'chr1' (seqname); got {last_xlabel!r}"
+    )
+    plt.close(fig)
 
 
 def test_visualizer_shares_split_coverage_y_axis_within_each_transcript_group():
