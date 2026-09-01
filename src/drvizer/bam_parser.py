@@ -87,11 +87,14 @@ class BAMParser:
         return total_coverage
 
     def _get_coverage_for_transcript_from_path(self, bam_path, transcript_info, target_chrom):
+        # 0-based half-open genomic extent of the transcript (matches the
+        # 0-based half-open projection emitted by GTFParser.convert_*
+        # under the audit-fixed convention).
         region_start = None
         region_end = None
         for exon in transcript_info['exons']:
-            exon_start = exon['start']
-            exon_end = exon['end'] + 1
+            exon_start = exon['start'] - 1
+            exon_end = exon['end']
             region_start = exon_start if region_start is None else min(region_start, exon_start)
             region_end = exon_end if region_end is None else max(region_end, exon_end)
 
@@ -219,12 +222,13 @@ class BAMParser:
         transcripts = gene_data['transcripts']
         target_chrom = gene_data['seqname']
 
+        # 0-based half-open genomic extent across all transcripts.
         region_start = None
         region_end = None
         for transcript_info in transcripts:
             for exon in transcript_info['exons']:
-                exon_start = exon['start']
-                exon_end = exon['end'] + 1
+                exon_start = exon['start'] - 1
+                exon_end = exon['end']
                 region_start = exon_start if region_start is None else min(region_start, exon_start)
                 region_end = exon_end if region_end is None else max(region_end, exon_end)
 

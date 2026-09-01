@@ -100,18 +100,51 @@ class PreparedDataSource:
             entry['transcript_id'] = transcript_id
         return entry
 
-    def _expand_split_tracks(self, split_mode, transcript_ids, split_track_specs):
+    def _build_empty_track_entry(self, track, track_kind, track_index, transcript_id, region):
+        """Placeholder entry for (track, transcript) combinations with no data.
+
+        The visualizer short-circuits on entry['empty'] so np.max([]) and
+        bar([], []) never run. Region metadata (chrom/start/end) is
+        inherited from the parent gene so right-side label groups stay
+        aligned with the prepared_tracks index space.
+        """
+        region_chrom, region_start, region_end = region
+        entry = self._build_track_entry(track, track_kind, {}, track_index, transcript_id)
+        entry['empty'] = True
+        entry['series'] = []
+        entry['intervals'] = []
+        entry['chrom'] = region_chrom
+        entry['start'] = region_start
+        entry['end'] = region_end
+        return entry
+
+    def _expand_split_tracks(self, split_mode, transcript_ids, split_track_specs, region):
         prepared_tracks = []
+        region_chrom, region_start, region_end = region
         if split_mode == 'nc':
             for transcript_id in transcript_ids:
                 for track_index, track, all_track_data in split_track_specs:
+                    track_kind = (
+                        'coverage'
+                        if hasattr(track, 'get_coverage_by_transcript')
+                        else getattr(track, 'parser_type', 'distribution')
+                    )
                     if transcript_id not in all_track_data:
+                        prepared_tracks.append(
+                            self._build_empty_track_entry(
+                                track,
+                                track_kind,
+                                track_index,
+                                transcript_id,
+                                region,
+                            )
+                        )
                         continue
                     track_data = all_track_data[transcript_id]
                     prepared_tracks.append(
                         self._build_track_entry(
                             track,
-                            'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
+                            track_kind,
                             track_data,
                             track_index,
                             transcript_id,
@@ -119,14 +152,28 @@ class PreparedDataSource:
                     )
         else:
             for track_index, track, all_track_data in split_track_specs:
+                track_kind = (
+                    'coverage'
+                    if hasattr(track, 'get_coverage_by_transcript')
+                    else getattr(track, 'parser_type', 'distribution')
+                )
                 for transcript_id in transcript_ids:
                     if transcript_id not in all_track_data:
+                        prepared_tracks.append(
+                            self._build_empty_track_entry(
+                                track,
+                                track_kind,
+                                track_index,
+                                transcript_id,
+                                region,
+                            )
+                        )
                         continue
                     track_data = all_track_data[transcript_id]
                     prepared_tracks.append(
                         self._build_track_entry(
                             track,
-                            'coverage' if hasattr(track, 'get_coverage_by_transcript') else getattr(track, 'parser_type', 'distribution'),
+                            track_kind,
                             track_data,
                             track_index,
                             transcript_id,
@@ -214,7 +261,12 @@ class PreparedDataSource:
 
         if split_modes:
             split_mode = next(iter(split_modes))
-            split_tracks = self._expand_split_tracks(split_mode, transcript_ids, split_track_specs)
+            split_tracks = self._expand_split_tracks(
+                split_mode,
+                transcript_ids,
+                split_track_specs,
+                (target_chrom, gene_start, gene_end),
+            )
             if split_tracks:
                 split_track_start = len(prepared_tracks)
                 prepared_tracks.extend(split_tracks)

@@ -1,19 +1,20 @@
 from collections import defaultdict
 import gzip
 
-from libc.stdlib cimport strtod, strtol
+from libc.stdint cimport int64_t
+from libc.stdlib cimport strtod, strtoll
 from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_GET_SIZE
 
 
-cdef inline int _parse_optional_int_text(const char* text, int text_len, int default_value):
+cdef inline int64_t _parse_optional_int_text(const char* text, int text_len, int64_t default_value):
     cdef char* endptr
-    cdef long value
+    cdef long long value
     if text_len == 0:
         return default_value
-    value = strtol(text, &endptr, 10)
+    value = strtoll(text, &endptr, 10)
     if endptr == text or endptr != text + text_len:
         return default_value
-    return <int>value
+    return value
 
 
 cdef inline object _parse_optional_float_text(const char* text, int text_len, object default_value):
@@ -46,10 +47,10 @@ cdef inline object _build_record_from_line(bytes line_bytes):
     cdef object strand
     cdef object item_rgb
     cdef object score
-    cdef int start
-    cdef int end
-    cdef int thick_start
-    cdef int thick_end
+    cdef int64_t start
+    cdef int64_t end
+    cdef int64_t thick_start
+    cdef int64_t thick_end
 
     cdef char tab = b'\t'
 

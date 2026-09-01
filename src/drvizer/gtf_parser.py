@@ -374,11 +374,17 @@ class GTFParser:
                 overlap_end = min(interval_end, exon_t_end)
                 if overlap_start < overlap_end:
                     if genomic_strand == '+':
-                        genomic_start = exon['start'] + (overlap_start - exon_t_start)
-                        genomic_end = exon['start'] + (overlap_end - exon_t_start)
+                        # 0-based half-open projection on the GTF start side.
+                        # GTF 'start' is 1-based inclusive, so the equivalent
+                        # 0-based half-open origin is (exon['start'] - 1).
+                        genomic_start = (exon['start'] - 1) + (overlap_start - exon_t_start)
+                        genomic_end = (exon['start'] - 1) + (overlap_end - exon_t_start)
                     else:
-                        genomic_start = exon['end'] - (overlap_end - exon_t_start) + 1
-                        genomic_end = exon['end'] - (overlap_start - exon_t_start) + 1
+                        # Minus strand mirrors the plus strand by reading the
+                        # exon right-edge in 0-based half-open coordinates;
+                        # the prior + 1 quirk is dropped.
+                        genomic_start = exon['end'] - (overlap_end - exon_t_start)
+                        genomic_end = exon['end'] - (overlap_start - exon_t_start)
 
                     if genomic_start > genomic_end:
                         genomic_start, genomic_end = genomic_end, genomic_start
