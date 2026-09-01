@@ -348,6 +348,33 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
         shared_y_axis_limit = shared_y_axis_limits.get((track.get('transcript_id'), track.get('y_axis_group')))
         bed_height = transcript_height / 2.5
 
+        # Set the ylabel up front so empty placeholder tracks keep their
+        # left-side label aligned with the rest of the prepared_tracks.
+        if effective_track_labels and len(effective_track_labels) > i + 1:
+            ax_track.set_ylabel(effective_track_labels[i + 1], fontsize=10)
+        elif track_label:
+            ax_track.set_ylabel(track_label, fontsize=10)
+        else:
+            ax_track.set_ylabel(f'Track {i + 1}', fontsize=10)
+        ax_track.yaxis.set_label_coords(-0.2, 0.5)
+
+        # Empty-track contract: render a label-only axis for placeholder
+        # entries padded by _expand_split_tracks so np.max([]) / bar([], [])
+        # never run on missing (track, transcript) combinations.
+        if track.get('empty', False):
+            ax_track.set_ylim(0, 1)
+            ax_track.set_yticks([])
+            ax_track.grid(False, axis='y')
+            ax_track.text(
+                0.5, 0.5,
+                'No signal / unexpressed',
+                ha='center', va='center',
+                transform=ax_track.transAxes,
+                color='gray', fontsize=8,
+            )
+            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
+            continue
+
         if track_kind == 'coverage':
             series = track_data.get('series')
             if series:
@@ -476,14 +503,6 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
             ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
             ax_track.grid(True, axis='x', alpha=0.25)
             ax_track.ticklabel_format(axis='x', style='plain', useOffset=False)
-
-        if effective_track_labels and len(effective_track_labels) > i + 1:
-            ax_track.set_ylabel(effective_track_labels[i + 1], fontsize=10)
-        elif track_label:
-            ax_track.set_ylabel(track_label, fontsize=10)
-        else:
-            ax_track.set_ylabel(f'Track {i + 1}', fontsize=10)
-        ax_track.yaxis.set_label_coords(-0.2, 0.5)
 
     axes[-1].set_xlabel(f'Genomic Position ({transcript_data["seqname"]})' if 'seqname' in transcript_data else 'Genomic Position', fontsize=10)
 
