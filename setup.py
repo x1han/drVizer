@@ -66,7 +66,7 @@ setup(
         "Topic :: Scientific/Engineering :: Bio-Informatics",
         "Topic :: Scientific/Engineering :: Visualization",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.7",
     install_requires=requirements,
     extras_require={
         "bam": ["pysam"],
