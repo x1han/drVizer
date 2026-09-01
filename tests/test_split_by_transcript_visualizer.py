@@ -190,6 +190,47 @@ def test_visualizer_positions_nc_right_labels_after_non_split_track():
     plt.close(fig)
 
 
+def _score_track_facecolors(ax):
+    """Collect per-bar facecolors for a score track after the batched-bar refactor.
+
+    Each score track renders one BarContainer inside one Collection of bar
+    rectangles. We iterate the container's patches so the assertion target
+    matches what the visualizer produces today (one BarContainer holding
+    all bars from a single ax.bar() call), not the per-element ax.bar that
+    the previous implementation used.
+    """
+    facecolors = []
+    for container in ax.containers:
+        for patch in container.patches:
+            facecolors.append(tuple(round(value, 3) for value in patch.get_facecolor()[:4]))
+    return facecolors
+
+
+def _distribution_track_facecolors(ax):
+    """Collect facecolors for distribution tracks after the PatchCollection refactor.
+
+    The visualizer now groups distribution rectangles into one PatchCollection
+    per bed_name group. We iterate the collections on ax and concatenate the
+    per-patch facecolors so the test reads element-by-element regardless of
+    how many collections were emitted.
+    """
+    facecolors = []
+    for collection in ax.collections:
+        for patch in collection.get_paths():
+            rgba = patch.get_facecolor() if hasattr(patch, 'get_facecolor') else None
+            if rgba is not None and len(rgba) >= 4:
+                facecolors.append(tuple(round(value, 3) for value in rgba[:4]))
+    # collections may not surface per-patch colors via get_paths for PatchCollection
+    # with match_original=True (path geometries are shared). Fall back to
+    # collection-level facecolors concatenated with their original count.
+    if not facecolors:
+        for collection in ax.collections:
+            colors = collection.get_facecolor()
+            for row in colors:
+                facecolors.append(tuple(round(value, 3) for value in row[:4]))
+    return facecolors
+
+
 def test_visualizer_renders_score_tracks_with_multiple_file_colors():
     transcript_data = _base_transcript_data()
     transcript_data["prepared_tracks"] = [
@@ -217,12 +258,9 @@ def test_visualizer_renders_score_tracks_with_multiple_file_colors():
     fig = visualize_gene_transcripts(transcript_data)
     ax = fig.axes[1]
 
-    patch_facecolors = [
-        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
-        for patch in ax.patches
-    ]
+    facecolors = _score_track_facecolors(ax)
 
-    assert patch_facecolors == [
+    assert facecolors == [
         (0.502, 0.502, 0.502, 0.1),
         (0.502, 0.502, 0.502, 0.1),
         (0.0, 0.0, 1.0, 0.25),
@@ -256,12 +294,9 @@ def test_visualizer_sorts_score_track_layers_with_small_values_on_top_by_default
     fig = visualize_gene_transcripts(transcript_data)
     ax = fig.axes[1]
 
-    patch_facecolors = [
-        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
-        for patch in ax.patches
-    ]
+    facecolors = _score_track_facecolors(ax)
 
-    assert patch_facecolors == [
+    assert facecolors == [
         (1.0, 0.0, 0.0, 1.0),
         (0.0, 0.502, 0.0, 1.0),
         (0.0, 0.0, 1.0, 1.0),
@@ -295,12 +330,9 @@ def test_visualizer_preserves_score_track_file_order_when_layer_order_is_none():
     fig = visualize_gene_transcripts(transcript_data)
     ax = fig.axes[1]
 
-    patch_facecolors = [
-        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
-        for patch in ax.patches
-    ]
+    facecolors = _score_track_facecolors(ax)
 
-    assert patch_facecolors == [
+    assert facecolors == [
         (0.0, 0.0, 1.0, 1.0),
         (1.0, 0.0, 0.0, 1.0),
         (0.0, 0.502, 0.0, 1.0),
@@ -386,12 +418,9 @@ def test_visualizer_renders_distribution_tracks_with_track_color():
     fig = visualize_gene_transcripts(transcript_data)
     ax = fig.axes[1]
 
-    patch_facecolors = [
-        tuple(round(value, 3) for value in patch.get_facecolor()[:4])
-        for patch in ax.patches
-    ]
+    facecolors = _distribution_track_facecolors(ax)
 
-    assert patch_facecolors == [
+    assert facecolors == [
         (0.502, 0.0, 0.502, 0.3),
     ]
     plt.close(fig)
