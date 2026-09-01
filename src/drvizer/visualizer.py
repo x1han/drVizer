@@ -283,7 +283,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
             y_pos = num_transcripts - i - 0.5
             transcript_y_positions.append(y_pos)
 
-            ax_gtf.hlines(y_pos, global_start, global_end, color='lightgray', linewidth=0, zorder=1)
+            ax_gtf.hlines(y_pos, global_start, global_end, color='lightgray', linewidth=0.5, zorder=1)
 
             for j in range(len(exons) - 1):
                 intron_start = exons[j]['end']
@@ -396,6 +396,10 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     track.get('layer_order', 'ascending'),
                     _coverage_series_max,
                 )
+                # P1-15: skip the per-series np.max when either y_axis_range or
+                # shared_y_axis_limit is set, since the ylim is fully determined
+                # by those branches and the max_y loop would be dead work.
+                compute_max_y = (y_axis_range is None and shared_y_axis_limit is None)
                 for item in ordered_series:
                     x = item.get('x', [])
                     y = item.get('y', [])
@@ -405,7 +409,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     alpha = item.get('alpha', track_alpha)
                     ax_track.fill_between(x, y, color=color, alpha=alpha, step='mid', zorder=3)
                     ax_track.plot(x, y, color=color, lw=0.7, alpha=min(alpha * 1.2, 1.0), zorder=4)
-                    if len(y) > 0:
+                    if compute_max_y and len(y) > 0:
                         max_y = max(max_y, float(np.max(y)))
                 if y_axis_range:
                     ax_track.set_ylim(0, y_axis_range)
@@ -463,6 +467,13 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 ax_track.set_ylim(0, y_axis_range)
             elif shared_y_axis_limit is not None:
                 ax_track.set_ylim(0, shared_y_axis_limit)
+            else:
+                # P0-9: score tracks with no explicit range and no shared group
+                # must still derive a sensible ylim from the data; otherwise
+                # matplotlib falls back to the (0, 1) default and tall bars are
+                # silently clipped. Floor at 1.0 to keep empty / zero-score
+                # tracks from collapsing to a zero-height axis.
+                ax_track.set_ylim(0, max(_score_track_max(track_data) * 1.1, 1.0))
             ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
             ax_track.grid(True, axis='x', alpha=0.25)
         else:
