@@ -5,6 +5,18 @@ Transcript Visualizer for drVizer
 This module provides functions to visualize gene transcript structures using matplotlib.
 """
 
+import os
+import matplotlib as _matplotlib
+
+# VIZ-010: headless-safe backend lock.
+# Respect user choice via MPLBACKEND; otherwise pin Agg so import does
+# not drag Tk/Qt into the process when CI / docs builds trigger pyplot.
+if "MPLBACKEND" not in os.environ:
+    try:
+        _matplotlib.use("Agg", force=False)
+    except Exception:
+        pass
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np

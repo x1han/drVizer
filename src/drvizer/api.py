@@ -1,5 +1,15 @@
 """High-level public API for drVizer."""
 
+import os
+import matplotlib as _matplotlib
+
+# VIZ-010: headless-safe backend lock (mirrors visualizer.py).
+if "MPLBACKEND" not in os.environ:
+    try:
+        _matplotlib.use("Agg", force=False)
+    except Exception:
+        pass
+
 import matplotlib
 import matplotlib.pyplot as plt
 from typing import Union, List, Dict, Any
