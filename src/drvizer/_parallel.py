@@ -40,6 +40,9 @@ def aggregate_region_coverages_parallel(bam_paths, chrom, start, end, contained_
             cpu_count = multiprocessing.cpu_count()
         except NotImplementedError:
             cpu_count = 1
+        # Treat None (and any non-int) returned by cpu_count() as a single worker.
+        if not isinstance(cpu_count, int):
+            cpu_count = 1
         worker_count = min(len(bam_paths), cpu_count, 32)
         total_coverage = np.zeros(end - start, dtype=np.int64)
         with multiprocessing.Pool(processes=worker_count) as pool:
@@ -51,7 +54,7 @@ def aggregate_region_coverages_parallel(bam_paths, chrom, start, end, contained_
                 ],
             ):
                 total_coverage += coverage.astype(np.int64, copy=False)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, TypeError) as exc:
         raise ParallelCoverageError(str(exc)) from exc
 
     return total_coverage
