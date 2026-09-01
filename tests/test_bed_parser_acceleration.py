@@ -364,3 +364,46 @@ def test_int64_coordinate_round_trip(tmp_path, monkeypatch):
     assert cython_records[0]["end"] == 2300000500 == python_records[0]["end"]
     assert cython_records[0]["thickStart"] == 2300000050 == python_records[0]["thickStart"]
     assert cython_records[0]["thickEnd"] == 2300000450 == python_records[0]["thickEnd"]
+
+
+@pytest.mark.xfail(
+    reason=(
+        "PARSER-014 contract violation: parse_bed(chrom, start, end) "
+        "clobbers the full-file cache. After a region query, a subsequent "
+        "parse_bed() returns the region subset instead of the full data. "
+        "The audit recommends setting self._parsed = False when a region "
+        "is requested so the next full parse re-loads everything. The fix "
+        "belongs in src/drvizer/bed_parser.py; Phase 6 is test-only."
+    ),
+    strict=True,
+)
+def test_parse_bed_cache_lifecycle_full_region_full(tmp_path, monkeypatch):
+    """PARSER-014: a region query must NOT clobber the full-file cache.
+
+    Sequence under test:
+      1. parse_bed() -> full data, both peaks visible.
+      2. parse_bed(chrom='chr1', start=200, end=330) -> region data (peak2 only).
+      3. parse_bed() -> must return the full data set again, not the region
+         query result. If the cache were clobbered by step 2, the second
+         full call would only return peak2 (the region subset).
+    """
+    bed_path = tmp_path / "lifecycle.bed"
+    bed_path.write_text("chr1\t105\t120\tpeak1\t10\t+\nchr1\t205\t220\tpeak2\t5\t+\n")
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", False)
+
+    parser = BEDParser(str(bed_path))
+
+    # Step 1: full parse.
+    full_first = parser.parse_bed()
+    assert sorted(r["name"] for r in full_first["chr1"]) == ["peak1", "peak2"]
+
+    # Step 2: region query.
+    region = parser.parse_bed(chrom="chr1", start=200, end=330)
+    assert [r["name"] for r in region["chr1"]] == ["peak2"]
+
+    # Step 3: full parse again must return the FULL data set, not the region.
+    full_second = parser.parse_bed()
+    assert sorted(r["name"] for r in full_second["chr1"]) == ["peak1", "peak2"], (
+        f"region query clobbered the full cache: {full_second}"
+    )
