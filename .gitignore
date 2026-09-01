@@ -159,6 +159,10 @@ logs/
 # Generated Cython C sources
 src/drvizer/_cython_*.c
 
+# Generated Cython binaries (per-ABI cpython-* so files)
+src/drvizer/_cython_*.so
+src/drvizer/_cython_*.cpython-*.so
+
 # Local-only repository files
 .claude/
 CLAUDE.md
