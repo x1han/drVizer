@@ -5,8 +5,21 @@ Transcript Visualizer for drVizer
 This module provides functions to visualize gene transcript structures using matplotlib.
 """
 
+import os
+import matplotlib as _matplotlib
+
+# VIZ-010: headless-safe backend lock.
+# Respect user choice via MPLBACKEND; otherwise pin Agg so import does
+# not drag Tk/Qt into the process when CI / docs builds trigger pyplot.
+if "MPLBACKEND" not in os.environ:
+    try:
+        _matplotlib.use("Agg", force=False)
+    except Exception:
+        pass
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.collections import PatchCollection
 import numpy as np
 from typing import Union, List
 
@@ -15,6 +28,41 @@ def _ordered_by_layer_value(items, layer_order, value_getter):
     if layer_order is None:
         return items
     return sorted(items, key=value_getter, reverse=layer_order == 'ascending')
+
+
+def _bake_alpha_into_colors(colors, alphas):
+    """Bake per-element alpha into RGBA colors so ax.bar can be called once.
+
+    ax.bar() does not accept a list for alpha — only a scalar or None.
+    To preserve per-bar alpha in a single batched call we convert the
+    color list to RGBA tuples that already include the alpha channel.
+    Colors already in RGBA form (4-tuples) get their alpha multiplied;
+    named/string colors are looked up via to_rgba so the channel layout
+    matches matplotlib's expectations.
+    """
+    from matplotlib.colors import to_rgba
+    baked = []
+    for color, alpha in zip(colors, alphas):
+        rgba = to_rgba(color)
+        if alpha is None:
+            baked.append(rgba)
+        else:
+            r, g, b, _ = rgba
+            baked.append((r, g, b, alpha))
+    return baked
+
+
+def _apply_axis_style(ax, *, grid=True, plain_x=True):
+    """Apply the standard visualizer axis style.
+
+    Centralizes the tick_params + grid + ticklabel_format boilerplate so
+    every track-kind branch emits identical axis styling. VIZ-008 helper.
+    """
+    ax.tick_params(axis='y', which='major', labelsize=8, pad=2)
+    if grid:
+        ax.grid(True, axis='x', alpha=0.25)
+    if plain_x:
+        ax.ticklabel_format(axis='x', style='plain', useOffset=False)
 
 
 def _coverage_series_max(item):
@@ -102,14 +150,21 @@ def _compute_track_layout(num_transcripts, prepared_tracks=None,
 
 
 def _coverage_track_max(track_data):
+    """Vectorized max over coverage series / array.
+
+    VIZ-014: concatenate all y-arrays into one numpy array and call
+    np.max once instead of looping with max(...) per series. The legacy
+    loop accumulated one Python-level max() per series and was O(N*M)
+    for N series of length M; the vectorized path is O(N*M) numpy
+    internal but uses one Python call site.
+    """
     series = track_data.get('series')
     if series:
-        max_y = 0
-        for item in series:
-            y = item.get('y', [])
-            if len(y) > 0:
-                max_y = max(max_y, float(np.max(y)))
-        return max_y
+        arrays = [np.asarray(item.get('y', []), dtype=float) for item in series]
+        arrays = [arr for arr in arrays if arr.size > 0]
+        if not arrays:
+            return 0
+        return float(np.max(np.concatenate(arrays)))
 
     y = track_data.get('y', [])
     if len(y) == 0:
@@ -118,11 +173,19 @@ def _coverage_track_max(track_data):
 
 
 def _score_track_max(track_data):
-    max_y = 0
-    for bed_elements in track_data.values():
-        for bed_element in bed_elements:
-            max_y = max(max_y, float(bed_element.get('score', 0.0)))
-    return max_y
+    """Vectorized max over score track scores.
+
+    VIZ-014: collect all scores into one numpy array and call np.max
+    once instead of looping with max(...) per element.
+    """
+    scores = [
+        bed_element.get('score', 0.0)
+        for bed_elements in track_data.values()
+        for bed_element in bed_elements
+    ]
+    if not scores:
+        return 0
+    return float(np.max(np.asarray(scores, dtype=float)))
 
 
 def _numeric_track_max(track):
@@ -265,69 +328,122 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     if num_transcripts > 0:
         ax_gtf = axes[0]
         transcript_y_positions = []
+        # P1-11: collect FancyArrowPatch instances across all transcripts and
+        # add them as a single PatchCollection at the end. match_original=True
+        # preserves the per-patch arrowstyle/color/lw/mutation_scale so visual
+        # identity with the previous Annotation-based rendering is unchanged.
+        # clip_on=True keeps each arrow clipped to the GTF panel — Annotations
+        # auto-clip to the axes; without this, FancyArrowPatches would paint
+        # across panel edges for transcripts whose genomic span exceeds the
+        # displayed window.
+        intron_arrow_patches = []
         for i, transcript in enumerate(transcripts):
             exons = sorted(transcript['exons'], key=lambda x: x['start'])
             cds_list = sorted(transcript.get('cds', []), key=lambda x: x['start'])
             y_pos = num_transcripts - i - 0.5
             transcript_y_positions.append(y_pos)
 
-            ax_gtf.hlines(y_pos, global_start, global_end, color='lightgray', linewidth=0, zorder=1)
+            ax_gtf.hlines(y_pos, global_start, global_end, color='lightgray', linewidth=0.5, zorder=1)
 
             for j in range(len(exons) - 1):
                 intron_start = exons[j]['end']
                 intron_end = exons[j + 1]['start']
 
                 if strand == '+':
-                    ax_gtf.annotate('', xy=(intron_end, y_pos), xytext=(intron_start, y_pos),
-                                    arrowprops=dict(arrowstyle='->', color='gray', lw=1), zorder=2)
+                    arrow = patches.FancyArrowPatch(
+                        (intron_start, y_pos),
+                        (intron_end, y_pos),
+                        arrowstyle='->',
+                        color='gray',
+                        lw=1,
+                        shrinkA=0,
+                        shrinkB=0,
+                        mutation_scale=10,
+                        clip_on=True,
+                    )
+                    intron_arrow_patches.append(arrow)
                 elif strand == '-':
-                    ax_gtf.annotate('', xy=(intron_start, y_pos), xytext=(intron_end, y_pos),
-                                    arrowprops=dict(arrowstyle='->', color='gray', lw=1), zorder=2)
+                    arrow = patches.FancyArrowPatch(
+                        (intron_end, y_pos),
+                        (intron_start, y_pos),
+                        arrowstyle='->',
+                        color='gray',
+                        lw=1,
+                        shrinkA=0,
+                        shrinkB=0,
+                        mutation_scale=10,
+                        clip_on=True,
+                    )
+                    intron_arrow_patches.append(arrow)
                 else:
                     ax_gtf.hlines(y_pos, intron_start, intron_end, color='gray', linewidth=1, zorder=2)
+
+        if intron_arrow_patches:
+            ax_gtf.add_collection(PatchCollection(
+                intron_arrow_patches,
+                match_original=True,
+                zorder=2,
+            ))
+
+        # P1-12: collect exon rectangles and CDS rectangles into SEPARATE
+        # PatchCollections. match_original=True preserves per-rectangle
+        # facecolor ('none' for exon, 'lightblue' for CDS), edgecolor
+        # ('black' for exon, 'none' for CDS), and linewidth (1 for exon,
+        # 0 for CDS). Exons and CDS are kept in different collections so
+        # their distinct styling survives collection rendering.
+        exon_rects = []
+        cds_rects = []
+        for i, transcript in enumerate(transcripts):
+            exons = sorted(transcript['exons'], key=lambda x: x['start'])
+            cds_list = sorted(transcript.get('cds', []), key=lambda x: x['start'])
+            y_pos = num_transcripts - i - 0.5
 
             for exon in exons:
                 start = exon['start']
                 end = exon['end']
-
-                exon_rect = patches.Rectangle(
+                exon_rects.append(patches.Rectangle(
                     (start, y_pos - transcript_height / 2),
                     end - start,
                     transcript_height,
                     linewidth=1,
                     edgecolor='black',
                     facecolor='none',
-                    zorder=5
-                )
-                ax_gtf.add_patch(exon_rect)
+                    zorder=5,
+                ))
 
-                exon_cds_regions = []
                 for cds in cds_list:
                     cds_start = max(start, cds['start'])
                     cds_end = min(end, cds['end'])
                     if cds_start < cds_end:
-                        exon_cds_regions.append((cds_start, cds_end))
+                        cds_rects.append(patches.Rectangle(
+                            (cds_start, y_pos - transcript_height / 2),
+                            cds_end - cds_start,
+                            transcript_height,
+                            linewidth=0,
+                            edgecolor='none',
+                            facecolor='lightblue',
+                            zorder=4,
+                        ))
 
-                for cds_start, cds_end in exon_cds_regions:
-                    cds_rect = patches.Rectangle(
-                        (cds_start, y_pos - transcript_height / 2),
-                        cds_end - cds_start,
-                        transcript_height,
-                        linewidth=0,
-                        edgecolor='none',
-                        facecolor='lightblue',
-                        zorder=4
-                    )
-                    ax_gtf.add_patch(cds_rect)
+        if exon_rects:
+            ax_gtf.add_collection(PatchCollection(
+                exon_rects,
+                match_original=True,
+                zorder=5,
+            ))
+        if cds_rects:
+            ax_gtf.add_collection(PatchCollection(
+                cds_rects,
+                match_original=True,
+                zorder=4,
+            ))
 
         transcript_labels = [t['transcript_id'] for t in transcripts]
         truncated_labels = [_shorten_transcript_label(label) for label in transcript_labels]
 
         ax_gtf.set_yticks(transcript_y_positions)
         ax_gtf.set_yticklabels(truncated_labels)
-        ax_gtf.tick_params(axis='y', which='major', labelsize=8, pad=2)
-        ax_gtf.grid(True, axis='x', alpha=0.25)
-        ax_gtf.ticklabel_format(axis='x', style='plain', useOffset=False)
+        _apply_axis_style(ax_gtf)
 
         if effective_track_labels and len(effective_track_labels) > 0:
             ax_gtf.set_ylabel(effective_track_labels[0], fontsize=10)
@@ -372,7 +488,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 transform=ax_track.transAxes,
                 color='gray', fontsize=8,
             )
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
+            _apply_axis_style(ax_track, grid=False)
             continue
 
         if track_kind == 'coverage':
@@ -384,6 +500,10 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     track.get('layer_order', 'ascending'),
                     _coverage_series_max,
                 )
+                # P1-15: skip the per-series np.max when either y_axis_range or
+                # shared_y_axis_limit is set, since the ylim is fully determined
+                # by those branches and the max_y loop would be dead work.
+                compute_max_y = (y_axis_range is None and shared_y_axis_limit is None)
                 for item in ordered_series:
                     x = item.get('x', [])
                     y = item.get('y', [])
@@ -393,7 +513,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     alpha = item.get('alpha', track_alpha)
                     ax_track.fill_between(x, y, color=color, alpha=alpha, step='mid', zorder=3)
                     ax_track.plot(x, y, color=color, lw=0.7, alpha=min(alpha * 1.2, 1.0), zorder=4)
-                    if len(y) > 0:
+                    if compute_max_y and len(y) > 0:
                         max_y = max(max_y, float(np.max(y)))
                 if y_axis_range:
                     ax_track.set_ylim(0, y_axis_range)
@@ -415,11 +535,14 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                         ax_track.set_ylim(0, shared_y_axis_limit)
                     else:
                         ax_track.set_ylim(0, np.max(y) * 1.1 if len(y) > 0 else 1)
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
-            ax_track.grid(True, axis='x', alpha=0.25)
+            _apply_axis_style(ax_track, plain_x=False)
         elif track_kind == 'score':
             layer_order = track.get('layer_order', 'ascending')
-            score_items = [] if layer_order is not None else None
+            # P1-13: batched ax.bar — build per-element lists and call ax.bar
+            # once per track instead of once per element. Preserves the
+            # existing layer_order sort by deferring the bar() call until
+            # after the (optional) _ordered_by_layer_value pass.
+            bars_data = []
             file_cycle = 0
             for _, bed_elements in track_data.items():
                 for bed_element in bed_elements:
@@ -427,32 +550,51 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                     color = file_colors[color_idx]
                     alpha = file_alphas[color_idx]
                     file_cycle += 1
-                    if layer_order is None:
-                        start = bed_element['start']
-                        end = bed_element['end']
-                        score = bed_element.get('score', 0.0)
-                        ax_track.bar((start + end) / 2, score, width=end - start, bottom=0,
-                                     color=color, edgecolor='none', linewidth=0, zorder=3, alpha=alpha)
-                    else:
-                        score_items.append((bed_element, color, alpha))
-            if layer_order is not None:
-                score_items = _ordered_by_layer_value(
-                    score_items,
-                    layer_order,
-                    lambda item: item[0].get('score', 0.0),
-                )
-                for bed_element, color, alpha in score_items:
                     start = bed_element['start']
                     end = bed_element['end']
                     score = bed_element.get('score', 0.0)
-                    ax_track.bar((start + end) / 2, score, width=end - start, bottom=0,
-                                 color=color, edgecolor='none', linewidth=0, zorder=3, alpha=alpha)
+                    bars_data.append((start, end, score, color, alpha))
+
+            if layer_order is not None:
+                bars_data = _ordered_by_layer_value(
+                    bars_data,
+                    layer_order,
+                    lambda item: item[2],
+                )
+
+            if bars_data:
+                centers = [(s + e) / 2 for s, e, _s, _c, _a in bars_data]
+                widths = [e - s for s, e, _s, _c, _a in bars_data]
+                heights = [sc for _s, _e, sc, _c, _a in bars_data]
+                colors = [c for _s, _e, _s2, c, _a in bars_data]
+                alphas = [a for _s, _e, _s2, _c, a in bars_data]
+                # ax.bar does not accept list alpha — bake alpha into RGBA
+                # colors so a single batched call preserves per-bar alpha.
+                baked_colors = _bake_alpha_into_colors(colors, alphas)
+                ax_track.bar(
+                    centers,
+                    heights,
+                    width=widths,
+                    bottom=0,
+                    color=baked_colors,
+                    edgecolor='none',
+                    linewidth=0,
+                    zorder=3,
+                    alpha=None,
+                )
+
             if y_axis_range:
                 ax_track.set_ylim(0, y_axis_range)
             elif shared_y_axis_limit is not None:
                 ax_track.set_ylim(0, shared_y_axis_limit)
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
-            ax_track.grid(True, axis='x', alpha=0.25)
+            else:
+                # P0-9: score tracks with no explicit range and no shared group
+                # must still derive a sensible ylim from the data; otherwise
+                # matplotlib falls back to the (0, 1) default and tall bars are
+                # silently clipped. Floor at 1.0 to keep empty / zero-score
+                # tracks from collapsing to a zero-height axis.
+                ax_track.set_ylim(0, max(_score_track_max(track_data) * 1.1, 1.0))
+            _apply_axis_style(ax_track, plain_x=False)
         else:
             bed_names = list(track_data.keys())
             num_bed_names = len(bed_names)
@@ -465,8 +607,14 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 bed_y_positions.append(y_pos)
                 bed_labels.append(name)
 
+            # P1-14: one PatchCollection per bed_name group (i.e. per row in
+            # the multi-row distribution track). match_original=True preserves
+            # per-rectangle facecolor=track_color and alpha=track_alpha so
+            # visual identity is unchanged.
+            bed_collections = []
             for name_idx, (_, bed_elements) in enumerate(track_data.items()):
                 y_pos = bed_y_positions[name_idx]
+                rects = []
                 for bed_element in bed_elements:
                     start = bed_element['start']
                     end = bed_element['end']
@@ -475,7 +623,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                         width = 1
                         start = start - 0.5
 
-                    bed_rect = patches.Rectangle(
+                    rects.append(patches.Rectangle(
                         (start, y_pos - bed_height / 2),
                         width,
                         bed_height,
@@ -483,9 +631,17 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                         edgecolor=None,
                         facecolor=track_color,
                         alpha=track_alpha,
-                        zorder=3
-                    )
-                    ax_track.add_patch(bed_rect)
+                        zorder=3,
+                    ))
+                if rects:
+                    bed_collections.append(PatchCollection(
+                        rects,
+                        match_original=True,
+                        zorder=3,
+                    ))
+
+            for collection in bed_collections:
+                ax_track.add_collection(collection)
 
             processed_bed_labels = []
             for label in bed_labels:
@@ -500,9 +656,7 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 first_element_y = num_bed_names - 0.5 + top_margin
                 last_element_y = 1 - 0.5 + top_margin
                 ax_track.set_ylim(last_element_y - 0.3, first_element_y + 0.3)
-            ax_track.tick_params(axis='y', which='major', labelsize=8, pad=2)
-            ax_track.grid(True, axis='x', alpha=0.25)
-            ax_track.ticklabel_format(axis='x', style='plain', useOffset=False)
+            _apply_axis_style(ax_track)
 
     axes[-1].set_xlabel(f'Genomic Position ({transcript_data["seqname"]})' if 'seqname' in transcript_data else 'Genomic Position', fontsize=10)
 
