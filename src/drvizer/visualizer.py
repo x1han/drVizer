@@ -277,6 +277,15 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
     if num_transcripts > 0:
         ax_gtf = axes[0]
         transcript_y_positions = []
+        # P1-11: collect FancyArrowPatch instances across all transcripts and
+        # add them as a single PatchCollection at the end. match_original=True
+        # preserves the per-patch arrowstyle/color/lw/mutation_scale so visual
+        # identity with the previous Annotation-based rendering is unchanged.
+        # clip_on=True keeps each arrow clipped to the GTF panel — Annotations
+        # auto-clip to the axes; without this, FancyArrowPatches would paint
+        # across panel edges for transcripts whose genomic span exceeds the
+        # displayed window.
+        intron_arrow_patches = []
         for i, transcript in enumerate(transcripts):
             exons = sorted(transcript['exons'], key=lambda x: x['start'])
             cds_list = sorted(transcript.get('cds', []), key=lambda x: x['start'])
@@ -290,13 +299,40 @@ def visualize_gene_transcripts(transcript_data, sort_by_exon_order=True, reverse
                 intron_end = exons[j + 1]['start']
 
                 if strand == '+':
-                    ax_gtf.annotate('', xy=(intron_end, y_pos), xytext=(intron_start, y_pos),
-                                    arrowprops=dict(arrowstyle='->', color='gray', lw=1), zorder=2)
+                    arrow = patches.FancyArrowPatch(
+                        (intron_start, y_pos),
+                        (intron_end, y_pos),
+                        arrowstyle='->',
+                        color='gray',
+                        lw=1,
+                        shrinkA=0,
+                        shrinkB=0,
+                        mutation_scale=10,
+                        clip_on=True,
+                    )
+                    intron_arrow_patches.append(arrow)
                 elif strand == '-':
-                    ax_gtf.annotate('', xy=(intron_start, y_pos), xytext=(intron_end, y_pos),
-                                    arrowprops=dict(arrowstyle='->', color='gray', lw=1), zorder=2)
+                    arrow = patches.FancyArrowPatch(
+                        (intron_end, y_pos),
+                        (intron_start, y_pos),
+                        arrowstyle='->',
+                        color='gray',
+                        lw=1,
+                        shrinkA=0,
+                        shrinkB=0,
+                        mutation_scale=10,
+                        clip_on=True,
+                    )
+                    intron_arrow_patches.append(arrow)
                 else:
                     ax_gtf.hlines(y_pos, intron_start, intron_end, color='gray', linewidth=1, zorder=2)
+
+        if intron_arrow_patches:
+            ax_gtf.add_collection(patches.PatchCollection(
+                intron_arrow_patches,
+                match_original=True,
+                zorder=2,
+            ))
 
             for exon in exons:
                 start = exon['start']
