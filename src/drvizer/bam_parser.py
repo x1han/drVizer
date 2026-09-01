@@ -10,6 +10,53 @@ from drvizer._parallel import (
 )
 
 
+def _project_aligned_blocks_to_transcript(
+    transcript_id,
+    blocks,
+    gtf_parser,
+    target_chrom,
+    region_start,
+    region_len,
+    coverage,
+):
+    """Project a list of (t_start, t_end) read blocks into the genomic
+    coverage array. The kernel is the pure-numeric inner-loop body that
+    was previously duplicated between the single-transcript and batch
+    coverage paths in this module (P1-6, Phase 3).
+
+    Args:
+        transcript_id: The transcript the blocks come from. Used for
+            the ``convert_transcript_to_genomic_segments`` projection.
+        blocks: Iterable of ``(t_start, t_end)`` tuples (0-based half-open
+            transcript coordinates).
+        gtf_parser: GTFParser instance used to project.
+        target_chrom: Chromosome the caller cares about; segments on
+            other chromosomes are filtered out.
+        region_start: Genomic start of the cumulative coverage array.
+        region_len: Length of the cumulative coverage array.
+        coverage: ``np.ndarray`` of length ``region_len`` mutated in place.
+
+    Returns:
+        None; ``coverage`` is updated in place.
+    """
+    for t_start, t_end in blocks:
+        result = gtf_parser.convert_transcript_to_genomic_segments(
+            transcript_id, t_start, t_end
+        )
+        if not result:
+            continue
+
+        chrom, _, segments = result
+        if chrom != target_chrom:
+            continue
+
+        for g_start, g_end in segments:
+            idx_s = max(0, g_start - region_start)
+            idx_e = min(region_len, g_end - region_start)
+            if idx_s < idx_e:
+                coverage[idx_s:idx_e] += 1
+
+
 class BAMParser:
     """
     BAM Parser for drVizer.
@@ -116,22 +163,15 @@ class BAMParser:
                 if not blocks:
                     continue
 
-                for t_start, t_end in blocks:
-                    result = self.gtf_parser.convert_transcript_to_genomic_segments(
-                        transcript_id, t_start, t_end
-                    )
-                    if not result:
-                        continue
-
-                    chrom, _, segments = result
-                    if chrom != target_chrom:
-                        continue
-
-                    for g_start, g_end in segments:
-                        idx_s = max(0, g_start - region_start)
-                        idx_e = min(region_len, g_end - region_start)
-                        if idx_s < idx_e:
-                            coverage[idx_s:idx_e] += 1
+                _project_aligned_blocks_to_transcript(
+                    transcript_id,
+                    blocks,
+                    self.gtf_parser,
+                    target_chrom,
+                    region_start,
+                    region_len,
+                    coverage,
+                )
 
         x = np.arange(region_start, region_end)
         return x, coverage
@@ -253,22 +293,15 @@ class BAMParser:
                         if not blocks:
                             continue
 
-                        for t_start, t_end in blocks:
-                            result = self.gtf_parser.convert_transcript_to_genomic_segments(
-                                transcript_id, t_start, t_end
-                            )
-                            if not result:
-                                continue
-
-                            chrom, _, segments = result
-                            if chrom != target_chrom:
-                                continue
-
-                            for g_start, g_end in segments:
-                                idx_s = max(0, g_start - region_start)
-                                idx_e = min(region_len, g_end - region_start)
-                                if idx_s < idx_e:
-                                    coverage[idx_s:idx_e] += 1
+                        _project_aligned_blocks_to_transcript(
+                            transcript_id,
+                            blocks,
+                            self.gtf_parser,
+                            target_chrom,
+                            region_start,
+                            region_len,
+                            coverage,
+                        )
 
         if self.aggregate_method == 'mean' and len(self.bam_paths) > 1:
             coverage = coverage.astype(np.float64) / len(self.bam_paths)

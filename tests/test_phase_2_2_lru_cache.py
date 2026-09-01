@@ -400,3 +400,60 @@ def test_benchmark_cache_vs_no_cache():
         f"cache hit ({second_elapsed*1e3:.2f}ms) is not >=10x faster "
         f"than miss ({first_elapsed*1e3:.2f}ms)"
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. test_close_failure_emits_resource_warning  (Cleanup B, Phase 3)
+# ---------------------------------------------------------------------------
+
+def test_close_failure_emits_resource_warning(small_gtf, tiny_bed, monkeypatch):
+    """Cleanup B: cache-clear failure inside ``ReusableParser.close``
+    must surface as a ResourceWarning instead of being swallowed."""
+
+    viz = DrViz().load_gtf(str(small_gtf)).add_bed_track(str(tiny_bed), label="TE")
+    parser = viz.build()
+    # Populate the cache so clear_cache has something to clear.
+    parser.data_source.get_transcript_data("GENE1")
+
+    # Monkeypatch clear_cache to raise; the close() must surface this as
+    # a ResourceWarning rather than swallowing it (Cleanup B mandate).
+    monkeypatch.setattr(
+        parser.data_source,
+        "clear_cache",
+        lambda: (_ for _ in ()).throw(RuntimeError("cache clear exploded")),
+    )
+
+    with pytest.warns(ResourceWarning, match="cache clear"):
+        parser.close()
+
+
+# ---------------------------------------------------------------------------
+# 10. test_get_transcript_data_none_coord_safe  (Phase 3)
+# ---------------------------------------------------------------------------
+
+def test_get_transcript_data_none_coord_safe(small_gtf, tiny_bed, monkeypatch):
+    """``PreparedDataSource.get_transcript_data('GENE1', start=None)`` must
+    not raise a TypeError and the cache key for (start=None) must hash
+    the same across repeat calls (cache hit on the second invocation)."""
+
+    counter = {"n": 0}
+
+    class _CountingTrack:
+        track_label = "TE"
+        parser_type = "distribution"
+
+        def get_grouped_anno_in_region(self, chrom, start, end):
+            counter["n"] += 1
+            return {"name": [{"chrom": chrom, "start": start, "end": end}]}
+
+    data_source = PreparedDataSource(gtf_parser=None, tracks=[_CountingTrack()])
+    # Manually wire the track in -- this exercises the cache helper path.
+    track = _CountingTrack()
+
+    # Two calls with the same (start=None, end=None) shape must produce the
+    # same cache key, so the second call is a hit.
+    first = data_source._fetch_grouped_anno_in_region(track, "chr1", None, None, 0)
+    second = data_source._fetch_grouped_anno_in_region(track, "chr1", None, None, 0)
+
+    assert counter["n"] == 1, "second call with same None start/end should be a cache hit"
+    assert first == second

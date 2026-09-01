@@ -66,9 +66,13 @@ def _record_in_region(record, region):
     return _record_overlaps_region(record['chrom'], record['start'], record['end'], chrom, start, end)
 
 
-def _open_text_file(bed_file_path, mode='rt'):
+# PARSER-011: open in binary mode to match the Cython path so CRLF
+# BEDs round-trip identically through both paths. We decode UTF-8 with
+# errors='replace' so any byte that fails to decode becomes the
+# Unicode replacement character instead of crashing the parser.
+def _open_binary_file(bed_file_path):
     open_func = gzip.open if bed_file_path.endswith('.gz') else open
-    return open_func(bed_file_path, mode)
+    return open_func(bed_file_path, 'rb')
 
 
 def _normalize_bed_read_error(bed_file_path, error):
@@ -80,12 +84,15 @@ def parse_bed_records_python(bed_file_paths, region=None):
 
     for bed_file_path in bed_file_paths:
         try:
-            with _open_text_file(bed_file_path, 'rt') as handle:
-                for line in handle:
+            with _open_binary_file(bed_file_path) as handle:
+                for raw_line in handle:
+                    # PARSER-011: rstrip CRLF + whitespace explicitly so
+                    # CRLF BEDs and LF BEDs produce identical records.
+                    line = raw_line.rstrip(b'\r\n').decode('utf-8', errors='replace')
                     if _is_comment_or_blank(line):
                         continue
 
-                    record = _parse_bed_fields(line.strip().split('\t'))
+                    record = _parse_bed_fields(line.split('\t'))
                     if record is None or not _record_in_region(record, region):
                         continue
 

@@ -51,6 +51,66 @@ All notable changes to drVizer are documented here. Versions follow
   sequentially within `prepare_tracks_parallel` (process first, then
   serial), and the pool is gated by the threshold.
 
+### Phase 3 — Cython/Python parity & hardening
+
+#### Added
+- **`ParallelCoverageError` re-exported from `drvizer` package**:
+  callers can now `from drvizer import ParallelCoverageError` for
+  typed error handling around parallel coverage failures.
+- **`tests/fixtures/crlf.bed`**: Windows-style CRLF-terminated BED
+  fixture (PARSER-011) exercising comment + blank + multi-chrom
+  records.
+- **`GTFParser._chunk_parse_degradation` counter**: incremented each
+  time the Cython chunk parser falls back to per-row Python parsing
+  (P1-3).
+- **Five new test files** (`tests/test_phase_3_*.py`) covering CRLF
+  BED parity, GTF chunk degradation, BAM projection kernel
+  consistency, `cpu_count()` None guard, and `ParallelCoverageError`
+  exception chain. Two additional tests (`test_close_failure_emits_*`,
+  `test_get_transcript_data_none_coord_safe`) extend the Phase 2.2
+  LRU-cache suite.
+
+#### Changed
+- **P1-8** (`_parallel.py`): the `Pool.imap_unordered` worker now
+  catches any `Exception`, re-raises as `ParallelCoverageError` chained
+  from the worker exception (`raise ... from exc`), and includes the
+  failing BAM path in the message. The original traceback is preserved
+  on `__cause__` so corrupt BAM / missing `.bai` failures stay
+  diagnosable.
+- **P1-3** (`gtf_parser.py`, `_cython_gtf.pyx`): pattern (a) of the
+  Cython chunk try/except decision is implemented. The `_process_chunk`
+  wrapper calls `_parse_gtf_chunk_impl` inside `try/except`; on
+  chunk-level failure it falls back to per-row Python parsing with
+  per-row `try/except (ValueError, TypeError)`, increments
+  `self._chunk_parse_degradation`, and emits a single
+  `RuntimeWarning` at `parse_gtf()` return time. The Cython kernel
+  remains a pure best-effort transform with no C-level try/except.
+- **P1-6** (`bam_parser.py`): extracted the
+  `_project_aligned_blocks_to_transcript(transcript_id, blocks,
+  gtf_parser, target_chrom, region_start, region_len, coverage)`
+  pure-numeric kernel; both the single-transcript and the batch
+  transcript-coverage paths now route through this single helper so
+  spliced-read / int64 / `np.add.at` fixes live in one place.
+- **P1-5** (`_parallel.py`, `_track_build.py`): `cpu_count()` is now
+  guarded with `try/except NotImplementedError` plus a
+  `isinstance(int)` fallback (and `os.cpu_count() or 1` in
+  `_track_build.py`). The original audit's `min(N, None, 32)` →
+  `TypeError` failure mode is impossible.
+- **PARSER-011** (`_cython_bed.pyx`, `bed_parser.py`): BED open mode
+  unified. Cython path uses `raw_line.rstrip(b'\r\n')`; Python
+  fallback opens in `'rb'` and decodes UTF-8 with `errors='replace'`
+  before `rstrip('\r\n')` and tab-splitting. CRLF and LF BEDs now
+  produce byte-identical records across both paths.
+- **Cleanup B** (`api.py`): the three `try/except Exception: pass`
+  blocks in `ReusableParser.close()` and the `__del__` finalizer now
+  surface failures as `warnings.warn(..., ResourceWarning,
+  stacklevel=2)` instead of silently swallowing them.
+- **`PreparedDataSource._fetch_coverage_in_region` /
+  `_fetch_grouped_anno_in_region`** (`api.py`): the cache key now
+  preserves `None` for missing coordinates instead of raising
+  `TypeError` from `int(None)`; repeated calls with `start=None,
+  end=None` are now cache-hits.
+
 ## [1.0.0] - prior
 
 Pre-Phase 2.2 release.

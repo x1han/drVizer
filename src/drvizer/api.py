@@ -367,7 +367,13 @@ class PreparedDataSource:
 
     def _fetch_coverage_in_region(self, track, target_chrom, gene_start, gene_end, track_index):
         track_id = self._track_id(track, track_index)
-        key = (track_id, '*', str(target_chrom), int(gene_start), int(gene_end))
+        key = (
+            track_id,
+            '*',
+            str(target_chrom),
+            int(gene_start) if gene_start is not None else None,
+            int(gene_end) if gene_end is not None else None,
+        )
         cached = _cache_get(self._cache, key)
         if cached is not None:
             return cached
@@ -383,7 +389,13 @@ class PreparedDataSource:
 
     def _fetch_grouped_anno_in_region(self, track, target_chrom, gene_start, gene_end, track_index):
         track_id = self._track_id(track, track_index)
-        key = (track_id, '*', str(target_chrom), int(gene_start), int(gene_end))
+        key = (
+            track_id,
+            '*',
+            str(target_chrom),
+            int(gene_start) if gene_start is not None else None,
+            int(gene_end) if gene_end is not None else None,
+        )
         cached = _cache_get(self._cache, key)
         if cached is not None:
             return cached
@@ -879,22 +891,42 @@ class ReusableParser:
         # 1. clear cache first (panel mandate C)
         try:
             self.data_source.clear_cache()
-        except Exception:
-            pass
+        except Exception as exc:
+            # Cleanup B: surface the failure as a ResourceWarning instead
+            # of silently swallowing it; cache-clear failures during
+            # shutdown are a leak signal the caller can act on.
+            warnings.warn(
+                f"ReusableParser.close(): cache clear failed: {exc!r}",
+                ResourceWarning,
+                stacklevel=2,
+            )
         # 2. shutdown pool with wait=True (panel mandate C)
         pool = getattr(self.data_source, '_pool', None)
         if pool is not None:
             try:
                 pool.shutdown(wait=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                # Cleanup B: surface pool-shutdown failure instead of
+                # swallowing; worker subprocess leaks are a real risk.
+                warnings.warn(
+                    f"ReusableParser.close(): pool shutdown failed: {exc!r}",
+                    ResourceWarning,
+                    stacklevel=2,
+                )
         # 3. flip the flags (both parser and data_source so cache_insert
         # on either rejects post-close)
         self._is_closed = True
         try:
             self.data_source._is_closed = True
-        except Exception:
-            pass
+        except Exception as exc:
+            # Cleanup B: surface flag-flip failure instead of
+            # swallowing; a stuck _is_closed flag would silently serve
+            # stale data on the next plot call.
+            warnings.warn(
+                f"ReusableParser.close(): failed to flip data_source._is_closed: {exc!r}",
+                ResourceWarning,
+                stacklevel=2,
+            )
 
     def clear_cache(self) -> None:
         """Public passthrough: drop the PreparedDataSource cache."""
@@ -911,8 +943,15 @@ class ReusableParser:
             )
             try:
                 self.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                # Cleanup B: surface __del__ close failures instead of
+                # swallowing; if finalization fails, the GC cycle ends
+                # with leaked cache and pool resources.
+                warnings.warn(
+                    f"ReusableParser.__del__: close() failed: {exc!r}",
+                    ResourceWarning,
+                    stacklevel=2,
+                )
 
     def _build_visible_track_configs(self, prepared_tracks):
         if not self.track_configs:

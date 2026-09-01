@@ -4,6 +4,14 @@ GTF Parser for drVizer
 
 This module provides functions to parse GTF files and extract transcript information
 for a specific gene, which can then be used for visualization.
+
+P1-3 (Phase 3) -- pattern (a) of the Cython chunk try/except decision: we
+wrap the ``_parse_gtf_chunk_impl`` call in try/except; on a chunk-level
+failure (rare; the Cython kernel has no C-level try/except), we fall back
+to a per-row Python branch that catches ``(ValueError, TypeError)`` per
+row, increments ``self._chunk_parse_degradation`` so callers can observe
+that a chunk was partially recovered, and never silently drops a 10k-line
+chunk on a single non-numeric coordinate column.
 """
 
 from collections import defaultdict
@@ -51,6 +59,11 @@ class GTFParser:
         self.gene_name_to_id = {}  # Map gene names to gene IDs
         self._transcripts_from_previous_files = set()  # Track transcripts from previous files
         self.transcript_to_gene = {}
+        # P1-3: counter of chunks that fell back to per-row Python parsing
+        # because the Cython kernel raised. Tests and end-of-parse warning
+        # summary observe this attribute; keep it public so the test surface
+        # is minimal and the API remains a single class.
+        self._chunk_parse_degradation: int = 0
         
     def parse_gtf(self, gene_id=None):
         """
@@ -86,7 +99,21 @@ class GTFParser:
         # Mark as fully parsed if we didn't specify a gene or if we parsed all genes
         if not gene_id:
             self._parsed = True
-            
+
+        # P1-3 (Phase 3): surface the Cython-chunk degradation counter as a
+        # single end-of-parse warning so users can see when a chunk fell
+        # back to per-row Python parsing. The counter itself remains on the
+        # parser instance for programmatic introspection.
+        if self._chunk_parse_degradation:
+            import warnings
+            warnings.warn(
+                f"GTFParser degraded {self._chunk_parse_degradation} chunk(s) "
+                f"to per-row Python parsing because the Cython kernel raised. "
+                f"Check that the GTF columns 3/4 are integers.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
         if gene_id:
             return {gene_id: self.gene_transcripts[gene_id]} if gene_id in self.gene_transcripts else {}
         else:
@@ -143,19 +170,22 @@ class GTFParser:
         """
         Process a chunk of GTF lines.
 
+        P1-3 (Phase 3) -- pattern (a): wrap the Cython kernel call in
+        try/except. If the kernel raises (e.g. ``int(parts[3])`` against a
+        malformed column), we fall back to a per-row Python branch that
+        catches ``(ValueError, TypeError)`` per row so a single bad row
+        never silently aborts a 10k-line chunk. The degradation counter
+        ``self._chunk_parse_degradation`` records each chunk that
+        degraded.
+
         Args:
             chunk_lines (list): List of GTF file lines
             gene_id (str, optional): Specific gene ID to parse
         """
-        chunk_rows = _parse_gtf_chunk_impl(chunk_lines) if _parse_gtf_chunk_impl is not None else None
-        if chunk_rows is not None:
-            iterable_rows = chunk_rows
-        else:
-            iterable_rows = []
-            for line in chunk_lines:
-                parts = line.strip().split('\t')
-                if len(parts) >= 9 and (parts[2] == 'exon' or parts[2] == 'CDS'):
-                    iterable_rows.append((parts[0], parts[2], int(parts[3]), int(parts[4]), parts[6], parts[8]))
+        iterable_rows = self._parse_chunk_rows(chunk_lines)
+
+        if not iterable_rows:
+            return
 
         if not iterable_rows:
             return
@@ -231,6 +261,41 @@ class GTFParser:
 
                 if not cds_exists:
                     self.gene_transcripts[gene_id_row][transcript_id]['cds'].append(new_cds)
+
+    def _parse_chunk_rows(self, chunk_lines):
+        """Parse a GTF chunk into per-row records with Cython-or-Python fallback.
+
+        P1-3 (Phase 3) -- pattern (a) of the Cython chunk try/except
+        decision. We try the Cython kernel first; if it raises (rare; the
+        kernel has no C-level try/except and the audit showed the entire
+        10k-line chunk was being lost on a single malformed coordinate),
+        we increment ``self._chunk_parse_degradation`` and fall back to a
+        per-row Python branch that catches ``(ValueError, TypeError)`` per
+        row so a single bad row never silently aborts a 10k-line chunk.
+        """
+        if _parse_gtf_chunk_impl is not None:
+            try:
+                return list(_parse_gtf_chunk_impl(chunk_lines))
+            except (ValueError, TypeError):
+                self._chunk_parse_degradation += 1
+            except Exception:
+                # Any other unexpected exception: still degrade, but
+                # keep the same semantics -- never drop the whole chunk.
+                self._chunk_parse_degradation += 1
+
+        iterable_rows = []
+        for line in chunk_lines:
+            parts = line.strip().split('\t')
+            if len(parts) >= 9 and (parts[2] == 'exon' or parts[2] == 'CDS'):
+                try:
+                    start_i = int(parts[3])
+                    end_i = int(parts[4])
+                except (ValueError, TypeError):
+                    continue
+                iterable_rows.append(
+                    (parts[0], parts[2], start_i, end_i, parts[6], parts[8])
+                )
+        return iterable_rows
 
     def _parse_attributes_fast(self, attribute_string):
         """

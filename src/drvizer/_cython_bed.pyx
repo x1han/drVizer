@@ -111,7 +111,7 @@ def _record_in_region(record, region):
 
 
 def parse_bed_records(bed_file_paths, region=None):
-    cdef dict grouped = defaultdict(list)
+    grouped = defaultdict(list)
     cdef object bed_file_path
     cdef object handle
     cdef object raw_line
@@ -123,7 +123,9 @@ def parse_bed_records(bed_file_paths, region=None):
             handle = gzip.open(bed_file_path, 'rb') if bed_file_path.endswith('.gz') else open(bed_file_path, 'rb')
             with handle:
                 for raw_line in handle:
-                    line_bytes = raw_line.strip()
+                    # PARSER-011: explicit CRLF rstrip so CRLF and LF
+                    # BEDs produce identical records to the Python path.
+                    line_bytes = raw_line.rstrip(b'\r\n')
                     if not line_bytes or line_bytes.startswith(b'#'):
                         continue
 

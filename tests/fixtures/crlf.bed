@@ -1,0 +1,5 @@
+# PARSER-011 CRLF fixture: Windows-style line endings.
+chr1	105	120	peak1	10	+	110	115	255,0,0	1	10	0
+chr1	205	220	peak2	5	+	210	215	0,255,0	1	10	0
+
+chr2	500	550	peak3	8	-	505	545	0,0,255	1	10	0
