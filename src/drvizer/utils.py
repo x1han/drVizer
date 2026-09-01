@@ -7,7 +7,6 @@ This module provides utility functions for data processing and format conversion
 
 import json
 import pandas as pd
-from collections import defaultdict
 
 
 def convert_to_json(transcript_data, output_path=None):

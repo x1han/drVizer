@@ -4,7 +4,72 @@ All notable changes to drVizer are documented here. Versions follow
 [Semantic Versioning](https://semver.org/). The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.1.0] - 2026-09-01
+
+### Added
+- **`pyproject.toml` PEP 621 `[project]` section** (PKG-002): `name=drvizer`,
+  `version=0.1.0`, `requires-python>=3.8`, MIT license text, README,
+  Python 3.8 - 3.12 classifiers (incl. `Development Status :: 4 - Beta`),
+  `dependencies` from `requirements.txt`, optional `[bam]=[pysam]` and
+  `[test]=[pytest]` extras, and `project_urls`. Authoritative single
+  source of install / metadata truth.
+- **`docs/api.md`**: public API contract document describing `DrViz`
+  constructor signature (`adaptive_threshold`, `cache_maxsize`), `plot()`,
+  `get_transcript_data()`, `ReusableParser` context manager,
+  `ParallelCoverageError` inheritance (`RuntimeError` -> subclass),
+  and the `__version__` contract.
+- **Three new test files** (`tests/test_phase_7_*.py`):
+  - `test_phase_7_imap_unordered.py` verifies that the existing
+    `_compute_region_coverage_with_path` worker binds `bam_path` via
+    closure, the `ParallelCoverageError` raised on worker failure
+    carries the failing `bam_path` in its message, and the master
+    consumer's `imap_unordered` loop pairs `bam_path` to its coverage
+    correctly even when results arrive out of order.
+  - `test_phase_7_degradation_guard.py` asserts no `RuntimeWarning` is
+    emitted when zero chunks degraded and exactly one `RuntimeWarning`
+    is emitted with the degradation count in the message when chunks
+    degraded.
+  - `test_phase_7_version_and_metadata.py` asserts `drvizer.__version__`
+    matches `importlib.metadata.version("drvizer")` and both equal
+    `"0.1.0"`, and the `pyproject.toml` classifiers include Python
+    3.8 through 3.12 plus `Development Status :: 4 - Beta`.
+
+### Changed
+- **`setup.py` skeleton** (P1-16): `setup.py` is now a thin C-extension
+  compile-only wrapper. `extra_compile_args=["-std=c99"]` is preserved on
+  every Cython `Extension` block (panel template did not mention this;
+  dropping it would silently violate C99 compliance). All metadata
+  (name, version, classifiers, install_requires, extras_require,
+  project_urls, long_description) was moved to `pyproject.toml [project]`
+  so the two sources no longer drift.
+- **`__version__` bumped `1.0.0` -> `0.1.0`** (PKG-002): first public
+  release tag.
+- **GTF chunk-degradation warning gate** (P1-3): the end-of-parse
+  `RuntimeWarning` in `GTFParser.parse_gtf` is now Python-gated on
+  `if self._chunk_parse_degradation:` so clean parses emit no warning.
+
+### Fixed
+- **`imap_unordered` attribution invariant** (P1-8 verification, P0-8
+  follow-up): the worker `_compute_region_coverage_with_path` already
+  binds `bam_path = args[0]` via closure; the consumer's
+  `imap_unordered` loop relies on the per-`bam_path` `ParallelCoverageError`
+  message (which now embeds the path) instead of result order. The
+  invariant is locked in `tests/test_phase_7_imap_unordered.py`.
+
+### Hygiene
+- **Dead `BEDParser` import removed** from `src/drvizer/api.py:31`
+  (OCR-006): `BEDParser` is not referenced anywhere else in `api.py`;
+  tests import directly from `drvizer.bed_parser`. Net: zero callers
+  depend on the `api.py` re-export.
+- **Dead `defaultdict` import removed** from `src/drvizer/utils.py:10`
+  (OCR-005): `defaultdict` is not referenced anywhere else in
+  `utils.py`.
+- **Stale `docs/superpowers/` `.gitignore` rule removed** (DOC-001):
+  `docs/` does not contain a `superpowers/` directory; the rule was
+  leftover from a prior layout. The corresponding `workspace/`
+  superpowers material now lives under `/datf/hanxi/software/drVizer/workspace/`.
+
+## [Unreleased] — Phase 2.2 (LRU cache + lifecycle)
 
 ### Added
 - **LRU cache in `PreparedDataSource`** (Phase 2.2): an

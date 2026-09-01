@@ -28,7 +28,6 @@ import numpy as np
 from typing import Union, List, Dict, Any, Optional, ContextManager
 
 from .gtf_parser import GTFParser
-from .bed_parser import BEDParser
 from .visualizer import visualize_gene_transcripts
 from ._track_build import prepare_tracks_parallel, TrackPreparationError
 

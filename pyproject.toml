@@ -1,3 +1,50 @@
 [build-system]
 requires = ["setuptools>=64", "wheel", "Cython>=3.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "drvizer"
+version = "0.1.0"
+description = "A Python tool for parsing GTF/BED files and visualizing gene transcript structures"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "x1han", email = "han_xi@gzlab.ac.cn"},
+]
+keywords = [
+    "bioinformatics",
+    "genomics",
+    "transcriptomics",
+    "gtf",
+    "bed",
+    "visualization",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "pandas>=1.3.0",
+    "matplotlib>=3.5.0",
+    "numpy>=1.21.0",
+]
+
+[project.optional-dependencies]
+bam = ["pysam"]
+test = ["pytest"]
+
+[project.urls]
+"Bug Reports" = "https://github.com/x1han/drVizer/issues"
+"Source" = "https://github.com/x1han/drVizer"
+"Documentation" = "https://github.com/x1han/drVizer#readme"
