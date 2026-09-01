@@ -179,7 +179,9 @@ def test_transcript_coverage_uses_int64_accumulator(monkeypatch, fake_bam_paths)
 
     class FakeGTFParser:
         def convert_transcript_to_genomic_segments(self, transcript_id, start, end):
-            return "chr1", "+", [(100 + start, 100 + end)]
+            # 0-based half-open: subtract 1 from the GTF 'start' to form the
+            # origin (matches the audit-fixed projection convention).
+            return "chr1", "+", [(99 + start, 99 + end)]
 
     monkeypatch.setattr(
         "drvizer.bam_parser.pysam.AlignmentFile",
