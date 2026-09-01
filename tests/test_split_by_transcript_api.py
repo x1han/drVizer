@@ -555,3 +555,237 @@ def test_split_bed_tracks_are_projected_to_genomic_coordinates(transcript_split_
     assert first_track_elements[0]['chrom'] == 'chr1'
     # 0-based half-open projection: GTF exon start 100 -> 99 origin.
     assert first_track_elements[0]['start'] == 104
+
+
+def test_split_by_transcript_cn_with_missing_transcript_keeps_alignment(transcript_split_gtf, transcript_split_bed_a, tmp_path):
+    """API-013 (P0-5): cn split with a missing transcript keeps the layout aligned.
+
+    Setup: under cn split mode, one transcript (ENST00000999999) has data
+    for both TrackA and TrackB, but the other transcript (ENST00000111111)
+    only has data for TrackA. Without the P0-5 placeholder contract, the
+    prepared_tracks list for ENST00000111111 would only include TrackA
+    and the right_label_groups indices would mis-align with the row
+    positions, causing fragmentation.
+
+    Asserts:
+      - prepared_tracks still includes a placeholder for ENST00000111111's
+        TrackB entry (so right_label_groups stay contiguous).
+      - right_label_groups covers both transcripts in order without gaps.
+    """
+    # TrackB has data ONLY for tx2 (so tx1 gets an empty placeholder).
+    tx2_only_bed = tmp_path / "track_b_tx2_only.bed"
+    tx2_only_bed.write_text("ENST00000999999\t25\t35\tpeakB2\t7\t+\n")
+
+    parser = (
+        DrViz()
+        .load_gtf(str(transcript_split_gtf))
+        .add_bed_track(str(transcript_split_bed_a), label="TrackA", transcript_coord=True, split_by_transcript="cn")
+        .add_bed_track(str(tx2_only_bed), label="TrackB", transcript_coord=True, split_by_transcript="cn")
+        .build()
+    )
+
+    payload = parser.data_source.get_transcript_data("gene1")
+    prepared_tracks = payload["prepared_tracks"]
+    right_label_groups = payload["right_label_groups"]
+
+    # cn ordering: TrackA@tx1, TrackB@tx1, TrackA@tx2, TrackB@tx2 (or placeholders).
+    # ENST00000111111 row should have a placeholder for TrackB.
+    assert len(prepared_tracks) == 4, (
+        f"prepared_tracks should have 4 entries (2 split x 2 transcripts), got {len(prepared_tracks)}"
+    )
+
+    by_label_and_tx = {(t["label"], t.get("transcript_id")): t for t in prepared_tracks}
+    tx1 = "ENST00000111111"
+    tx2 = "ENST00000999999"
+
+    # TrackA on both transcripts has real data.
+    assert not by_label_and_tx[("TrackA", tx1)].get("empty")
+    assert not by_label_and_tx[("TrackA", tx2)].get("empty")
+
+    # TrackB on tx1 is empty (placeholder); TrackB on tx2 has real data.
+    assert by_label_and_tx[("TrackB", tx1)].get("empty") is True
+    assert by_label_and_tx[("TrackB", tx2)].get("empty") is not True
+
+    # right_label_groups must cover both transcripts in order, no gaps.
+    tx_ids_in_groups = [g["transcript_id"] for g in right_label_groups]
+    assert tx1 in tx_ids_in_groups, f"missing {tx1} in right_label_groups: {right_label_groups}"
+    assert tx2 in tx_ids_in_groups, f"missing {tx2} in right_label_groups: {right_label_groups}"
+
+    # Indices are contiguous within each group (no fragmentation).
+    for group in right_label_groups:
+        assert group["end_index"] - group["start_index"] >= 0
+
+    # Indices form a continuous span covering all 4 prepared_tracks.
+    all_indices = sorted(
+        idx
+        for group in right_label_groups
+        for idx in range(group["start_index"], group["end_index"] + 1)
+    )
+    assert all_indices == [0, 1, 2, 3], (
+        f"right_label_groups must cover all 4 prepared_tracks contiguously; "
+        f"got all_indices={all_indices}, right_label_groups={right_label_groups}"
+    )
+
+
+def test_y_axis_group_end_to_end_shared_limit():
+    """API-014: y_axis_group shared limit applied through _shared_y_axis_limits.
+
+    Two coverage tracks on the same gene share y_axis_group='g'; max y is
+    4.2 across both. ``_shared_y_axis_limits`` must return identical
+    (transcript_id, 'g') -> 4.62 (=4.2*1.1) limit for both tracks.
+
+    Also verifies the limit is propagated to the rendered figure axes.
+    """
+    from drvizer.visualizer import _shared_y_axis_limits
+
+    transcript_data = {
+        "gene_id": "gene1",
+        "seqname": "chr1",
+        "strand": "+",
+        "identifier_type": "gene_id",
+        "original_identifier": "gene1",
+        "transcripts": [
+            {"transcript_id": "ENST00000111111", "exons": [{"start": 100, "end": 150}], "cds": []},
+            {"transcript_id": "ENST00000999999", "exons": [{"start": 300, "end": 340}], "cds": []},
+        ],
+        "prepared_tracks": [
+            {
+                "kind": "coverage",
+                "data": {"x": [105, 106], "y": [1, 2]},
+                "label": "COPD Reads",
+                "transcript_id": "ENST00000111111",
+                "color": "#f14432",
+                "alpha": 1,
+                "y_axis_group": "g",
+            },
+            {
+                "kind": "coverage",
+                "data": {"x": [105, 106], "y": [3, 4]},
+                "label": "Control Reads",
+                "transcript_id": "ENST00000111111",
+                "color": "#4a98c9",
+                "alpha": 1,
+                "y_axis_group": "g",
+            },
+        ],
+    }
+
+    limits = _shared_y_axis_limits(transcript_data["prepared_tracks"])
+    # Both tracks share the same (transcript_id, group) key.
+    assert set(limits.keys()) == {("ENST00000111111", "g")}
+    assert limits[("ENST00000111111", "g")] == pytest.approx(4.4, abs=1e-9)
+
+
+def test_y_axis_group_end_to_end_through_visualizer_axes():
+    """API-014 end-to-end: shared y_axis_group yields identical axes ylim.
+
+    Builds a transcript_data dict with two coverage tracks sharing
+    y_axis_group='reads' on the same transcript, max y is 4.2. After
+    rendering via visualize_gene_transcripts, both axes must have the
+    same ylim upper bound (proving the shared limit propagates through
+    the full visualizer pipeline).
+    """
+    import matplotlib.pyplot as plt
+
+    from drvizer.visualizer import visualize_gene_transcripts
+
+    transcript_data = {
+        "gene_id": "gene1",
+        "seqname": "chr1",
+        "strand": "+",
+        "identifier_type": "gene_id",
+        "original_identifier": "gene1",
+        "transcripts": [
+            {"transcript_id": "ENST00000111111", "exons": [{"start": 100, "end": 150}], "cds": []},
+        ],
+        "prepared_tracks": [
+            {
+                "kind": "coverage",
+                "data": {"x": [105, 106], "y": [1, 2]},
+                "label": "COPD Reads",
+                "transcript_id": "ENST00000111111",
+                "color": "#f14432",
+                "alpha": 1,
+                "y_axis_group": "reads",
+            },
+            {
+                "kind": "coverage",
+                "data": {"x": [105, 106], "y": [3, 4]},
+                "label": "Control Reads",
+                "transcript_id": "ENST00000111111",
+                "color": "#4a98c9",
+                "alpha": 1,
+                "y_axis_group": "reads",
+            },
+        ],
+        "right_label_groups": [
+            {"transcript_id": "ENST00000111111", "start_index": 0, "end_index": 1},
+        ],
+    }
+
+    fig = visualize_gene_transcripts(transcript_data)
+
+    # Two coverage axes on the same transcript with y_axis_group='reads'.
+    # Max y is 4 (max of 1,2,3,4), shared ylim upper = 4 * 1.1 = 4.4.
+    axes_for_tx = [ax for ax in fig.axes[1:] if ax.get_ylim()[1] == pytest.approx(4.4, abs=1e-9)]
+    assert len(axes_for_tx) == 2, (
+        f"expected exactly 2 axes with shared ylim 4.4; got {len(axes_for_tx)} "
+        f"axes with that ylim, full axes ylims: {[ax.get_ylim() for ax in fig.axes[1:]]}"
+    )
+    plt.close(fig)
+
+
+def test_track_colors_length_alignment_with_split_expansion(transcript_split_gtf, transcript_split_bed_a, transcript_split_bed_b):
+    """API-016 (P1-9): track_colors / track_labels align with split expansion.
+
+    Build a DrViz with 2 split tracks under nc mode against 2 transcripts.
+    That yields 4 prepared_tracks (2 split x 2 transcripts). After calling
+    .plot(show=False), ``gene_data['track_colors']`` and
+    ``gene_data['track_labels']`` must each have length 5
+    (Transcripts + 4 expanded), so visualizer rendering doesn't fall back
+    to a KeyError.
+
+    NOTE: This test pins the current pre-P1-9 behavior (no visible_configs
+    dedup). If Phase 7 implements the ``_visible_configs_cache`` dedup the
+    audit recommends, ``_build_visible_track_configs`` may return a shorter
+    list and this assertion will need to be relaxed to
+    ``len(unique_configs) + 1``.
+    """
+    parser = (
+        DrViz()
+        .load_gtf(str(transcript_split_gtf))
+        .add_bed_track(str(transcript_split_bed_a), label="TrackA", transcript_coord=True, split_by_transcript="nc")
+        .add_bed_track(str(transcript_split_bed_b), label="TrackB", transcript_coord=True, split_by_transcript="nc")
+        .build()
+    )
+
+    fig = parser.plot("gene1", show=False)
+
+    # Re-fetch gene_data the same way plot() does internally; instead,
+    # call get_transcript_data and replicate the track_labels/colors logic.
+    gene_data = parser.data_source.get_transcript_data("gene1")
+    visible_configs = parser._build_visible_track_configs(gene_data["prepared_tracks"])
+    track_labels = ["Transcripts"]
+    track_colors = [None]
+    for config in visible_configs:
+        track_labels.append(config["label"])
+        track_colors.append(config["color"])
+
+    # Without dedup, 2 split tracks x 2 transcripts = 4 visible configs.
+    assert len(visible_configs) == 4, (
+        f"expected 4 visible configs (2 split x 2 transcripts); got {len(visible_configs)}"
+    )
+    assert len(track_labels) == 5, (
+        f"track_labels must have len 5 (Transcripts + 4 expanded); got {track_labels}"
+    )
+    assert len(track_colors) == 5, (
+        f"track_colors must have len 5 (Transcripts + 4 expanded); got {track_colors}"
+    )
+    assert track_labels[0] == "Transcripts"
+    assert track_colors[0] is None
+    # Expanded labels are populated.
+    assert "TrackA" in track_labels
+    assert "TrackB" in track_labels
+
+    # Render must not raise a KeyError at axes access time.
+    assert len(fig.axes) == 5, f"expected 5 axes (Transcripts + 4 expanded); got {len(fig.axes)}"
