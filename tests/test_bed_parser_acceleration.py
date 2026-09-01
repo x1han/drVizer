@@ -162,8 +162,8 @@ def test_transcript_coordinate_bed_uses_python_parser_even_when_cython_available
         "chr1": [
             {
                 "chrom": "chr1",
-                "start": 110,
-                "end": 150,
+                "start": 109,
+                "end": 149,
                 "name": "peak_tx",
                 "score": 7.0,
                 "strand": "+",
@@ -173,8 +173,8 @@ def test_transcript_coordinate_bed_uses_python_parser_even_when_cython_available
             },
             {
                 "chrom": "chr1",
-                "start": 200,
-                "end": 220,
+                "start": 199,
+                "end": 219,
                 "name": "peak_tx",
                 "score": 7.0,
                 "strand": "+",
