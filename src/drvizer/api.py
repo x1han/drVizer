@@ -191,6 +191,58 @@ class PreparedDataSource:
                     )
         return prepared_tracks
 
+    def _compute_track_window(self, transcripts, target_chrom, flank_pct=0.025):
+        """Compute the (chrom, start, end) window covering `transcripts`.
+
+        `transcripts` is the post-filter visible_transcripts list, so the
+        window follows transcript_to_show filtering. `target_chrom` is a
+        pass-through: it originates from first_gene_data['seqname'] and
+        cannot be derived from `transcripts` (transcript dicts carry
+        transcript_id/strand/exons/cds only), and get_transcript_data
+        already needs it for the same-chromosome validation loop.
+
+        Padding truncates toward zero via int(). The no-exon case falls
+        back to (0, 1000) so downstream windows remain well-defined even
+        for transcripts with empty exon lists.
+        """
+        all_starts = [exon['start'] for t in transcripts for exon in t['exons']]
+        all_ends = [exon['end'] for t in transcripts for exon in t['exons']]
+        if all_starts and all_ends:
+            range_min, range_max = min(all_starts), max(all_ends)
+            padding = int((range_max - range_min) * flank_pct)
+            gene_start = int(range_min - padding)
+            gene_end = int(range_max + padding)
+        else:
+            gene_start, gene_end = 0, 1000
+        return target_chrom, gene_start, gene_end
+
+    def _dispatch_track_data(self, track, track_index, gene_identifier, target_chrom, gene_start, gene_end):
+        """Dispatch one non-split track and return its prepared entry list.
+
+        Returns a list of length 0 (undispatchable) or 1 (success). Caller
+        is expected to use list.extend(...) so the empty case contributes
+        nothing and the populated case appends exactly one entry -- this
+        preserves the loop's call order across tracks.
+
+        The hasattr chain order matters: transcript_coord +
+        get_coverage_for_transcripts shadows get_coverage_in_region for
+        transcript-coord BAM tracks, so it is tested first.
+        """
+        if hasattr(track, 'transcript_coord') and track.transcript_coord and hasattr(track, 'get_coverage_for_transcripts'):
+            payload = track.get_coverage_for_transcripts(gene_identifier)
+            track_data = {'x': payload[0], 'y': payload[1]}
+            track_kind = 'coverage'
+        elif hasattr(track, 'get_coverage_in_region'):
+            payload = track.get_coverage_in_region(target_chrom, gene_start, gene_end)
+            track_data = {'x': payload[0], 'y': payload[1]}
+            track_kind = 'coverage'
+        elif hasattr(track, 'get_grouped_anno_in_region'):
+            track_data = track.get_grouped_anno_in_region(target_chrom, gene_start, gene_end)
+            track_kind = getattr(track, 'parser_type', 'distribution')
+        else:
+            return []
+        return [self._build_track_entry(track, track_kind, track_data, track_index)]
+
     def get_transcript_data(self, gene_identifier, transcript_to_show=None):
         identifiers = [gene_identifier] if isinstance(gene_identifier, str) else gene_identifier
         if len(identifiers) > 1 and any(getattr(track, 'split_by_transcript', None) is not None for track in self.tracks):
@@ -225,16 +277,7 @@ class PreparedDataSource:
                 visible_transcripts = filtered_transcripts
 
         transcript_ids = [transcript['transcript_id'] for transcript in visible_transcripts]
-        all_starts = [exon['start'] for t in visible_transcripts for exon in t['exons']]
-        all_ends = [exon['end'] for t in visible_transcripts for exon in t['exons']]
-
-        if all_starts and all_ends:
-            range_min, range_max = min(all_starts), max(all_ends)
-            padding = int((range_max - range_min) * 0.025)
-            gene_start = int(range_min - padding)
-            gene_end = int(range_max + padding)
-        else:
-            gene_start, gene_end = 0, 1000
+        target_chrom, gene_start, gene_end = self._compute_track_window(visible_transcripts, target_chrom)
 
         prepared_tracks = []
         split_track_specs = []
@@ -250,21 +293,7 @@ class PreparedDataSource:
                     split_track_specs.append((i, track, track.get_grouped_anno_by_transcript(gene_identifier)))
                     continue
 
-            if hasattr(track, 'transcript_coord') and track.transcript_coord and hasattr(track, 'get_coverage_for_transcripts'):
-                payload = track.get_coverage_for_transcripts(gene_identifier)
-                track_data = {'x': payload[0], 'y': payload[1]}
-                track_kind = 'coverage'
-            elif hasattr(track, 'get_coverage_in_region'):
-                payload = track.get_coverage_in_region(target_chrom, gene_start, gene_end)
-                track_data = {'x': payload[0], 'y': payload[1]}
-                track_kind = 'coverage'
-            elif hasattr(track, 'get_grouped_anno_in_region'):
-                track_data = track.get_grouped_anno_in_region(target_chrom, gene_start, gene_end)
-                track_kind = getattr(track, 'parser_type', 'distribution')
-            else:
-                continue
-
-            prepared_tracks.append(self._build_track_entry(track, track_kind, track_data, i))
+            prepared_tracks.extend(self._dispatch_track_data(track, i, gene_identifier, target_chrom, gene_start, gene_end))
 
         if len(split_modes) > 1:
             raise ValueError("split_by_transcript must be consistent across all split tracks")

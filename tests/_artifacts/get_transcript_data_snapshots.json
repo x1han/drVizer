@@ -1,0 +1,1701 @@
+{
+  "s01_single_gene_no_tracks": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": []
+    }
+  },
+  "s02_single_gene_genomic_bed": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "peak3": [
+              {
+                "chrom": "chr1",
+                "start": 305,
+                "end": 320,
+                "name": "peak3",
+                "score": 8.0,
+                "strand": "+",
+                "thickStart": 305,
+                "thickEnd": 320,
+                "itemRgb": "0"
+              }
+            ],
+            "peak4": [
+              {
+                "chrom": "chr1",
+                "start": 405,
+                "end": 420,
+                "name": "peak4",
+                "score": 4.0,
+                "strand": "+",
+                "thickStart": 405,
+                "thickEnd": 420,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TE",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "s03_transcript_to_show_str": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": []
+    }
+  },
+  "s04_transcript_to_show_unmatched": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": []
+    }
+  },
+  "s05_split_nc_two_bed": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "right_label_groups": [
+        {
+          "transcript_id": "ENST00000111111",
+          "start_index": 0,
+          "end_index": 1
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "start_index": 2,
+          "end_index": 3
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "peakA1": [
+              {
+                "chrom": "chr1",
+                "start": 104,
+                "end": 119,
+                "name": "peakA1",
+                "score": 10.0,
+                "strand": "+",
+                "thickStart": 5,
+                "thickEnd": 20,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackA",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000111111"
+        },
+        {
+          "kind": "distribution",
+          "data": {
+            "peakB1": [
+              {
+                "chrom": "chr1",
+                "start": 129,
+                "end": 139,
+                "name": "peakB1",
+                "score": 5.0,
+                "strand": "+",
+                "thickStart": 30,
+                "thickEnd": 40,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackB",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000111111"
+        },
+        {
+          "kind": "distribution",
+          "data": {
+            "peakA2": [
+              {
+                "chrom": "chr1",
+                "start": 307,
+                "end": 317,
+                "name": "peakA2",
+                "score": 12.0,
+                "strand": "+",
+                "thickStart": 8,
+                "thickEnd": 18,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackA",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000999999"
+        },
+        {
+          "kind": "distribution",
+          "data": {
+            "peakB2": [
+              {
+                "chrom": "chr1",
+                "start": 324,
+                "end": 334,
+                "name": "peakB2",
+                "score": 7.0,
+                "strand": "+",
+                "thickStart": 25,
+                "thickEnd": 35,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackB",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000999999"
+        }
+      ]
+    }
+  },
+  "s06_split_cn_missing_tx": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "right_label_groups": [
+        {
+          "transcript_id": "ENST00000111111",
+          "start_index": 0,
+          "end_index": 0
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "start_index": 1,
+          "end_index": 1
+        },
+        {
+          "transcript_id": "ENST00000111111",
+          "start_index": 2,
+          "end_index": 2
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "start_index": 3,
+          "end_index": 3
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "peakA1": [
+              {
+                "chrom": "chr1",
+                "start": 104,
+                "end": 119,
+                "name": "peakA1",
+                "score": 10.0,
+                "strand": "+",
+                "thickStart": 5,
+                "thickEnd": 20,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackA",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000111111"
+        },
+        {
+          "kind": "distribution",
+          "data": {
+            "peakA2": [
+              {
+                "chrom": "chr1",
+                "start": 307,
+                "end": 317,
+                "name": "peakA2",
+                "score": 12.0,
+                "strand": "+",
+                "thickStart": 8,
+                "thickEnd": 18,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackA",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000999999"
+        },
+        {
+          "kind": "distribution",
+          "data": {},
+          "label": "TrackB",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000111111",
+          "empty": true,
+          "series": [],
+          "intervals": [],
+          "chrom": "chr1",
+          "start": 93,
+          "end": 406
+        },
+        {
+          "kind": "distribution",
+          "data": {
+            "peakB2": [
+              {
+                "chrom": "chr1",
+                "start": 324,
+                "end": 334,
+                "name": "peakB2",
+                "score": 7.0,
+                "strand": "+",
+                "thickStart": 25,
+                "thickEnd": 35,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TrackB",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000999999"
+        }
+      ]
+    }
+  },
+  "s07_mixed_genomic_and_split": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "right_label_groups": [
+        {
+          "transcript_id": "ENST00000111111",
+          "start_index": 1,
+          "end_index": 1
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "start_index": 2,
+          "end_index": 2
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "peak3": [
+              {
+                "chrom": "chr1",
+                "start": 305,
+                "end": 320,
+                "name": "peak3",
+                "score": 8.0,
+                "strand": "+",
+                "thickStart": 305,
+                "thickEnd": 320,
+                "itemRgb": "0"
+              }
+            ],
+            "peak4": [
+              {
+                "chrom": "chr1",
+                "start": 405,
+                "end": 420,
+                "name": "peak4",
+                "score": 4.0,
+                "strand": "+",
+                "thickStart": 405,
+                "thickEnd": 420,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TE",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending"
+        },
+        {
+          "kind": "score",
+          "data": {
+            "peakA1": [
+              {
+                "chrom": "chr1",
+                "start": 104,
+                "end": 119,
+                "name": "peakA1",
+                "score": 10.0,
+                "strand": "+",
+                "thickStart": 5,
+                "thickEnd": 20,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "m6A",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000111111"
+        },
+        {
+          "kind": "score",
+          "data": {
+            "peakA2": [
+              {
+                "chrom": "chr1",
+                "start": 307,
+                "end": 317,
+                "name": "peakA2",
+                "score": 12.0,
+                "strand": "+",
+                "thickStart": 8,
+                "thickEnd": 18,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "m6A",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending",
+          "transcript_id": "ENST00000999999"
+        }
+      ]
+    }
+  },
+  "s08_mixed_split_modes_error": {
+    "ok": false,
+    "error_type": "ValueError",
+    "error": "split_by_transcript must be consistent across all split tracks"
+  },
+  "s09_multi_gene_same_chrom": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1, gene2",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "tx1",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            }
+          ],
+          "cds": []
+        },
+        {
+          "transcript_id": "tx2",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 2000,
+              "end": 2049,
+              "number": 1
+            }
+          ],
+          "cds": []
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "peak3": [
+              {
+                "chrom": "chr1",
+                "start": 305,
+                "end": 320,
+                "name": "peak3",
+                "score": 8.0,
+                "strand": "+",
+                "thickStart": 305,
+                "thickEnd": 320,
+                "itemRgb": "0"
+              }
+            ],
+            "peak4": [
+              {
+                "chrom": "chr1",
+                "start": 405,
+                "end": 420,
+                "name": "peak4",
+                "score": 4.0,
+                "strand": "+",
+                "thickStart": 405,
+                "thickEnd": 420,
+                "itemRgb": "0"
+              }
+            ]
+          },
+          "label": "TE",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": [
+            "orange"
+          ],
+          "file_alphas": [
+            0.8
+          ],
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "s10_multi_gene_diff_chrom_error": {
+    "ok": false,
+    "error_type": "ValueError",
+    "error": "Error: Genes must be on the same chromosome. Found chr1 and chr2"
+  },
+  "s11_tx_coord_coverage_track": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "coverage",
+          "data": {
+            "x": {
+              "__ndarray__": [
+                100,
+                101
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            },
+            "y": {
+              "__ndarray__": [
+                7,
+                9
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            }
+          },
+          "label": "TxCov",
+          "color": "purple",
+          "alpha": 0.4,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "s12_unknown_track_skipped": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "coverage",
+          "data": {
+            "x": {
+              "__ndarray__": [
+                100,
+                101
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            },
+            "y": {
+              "__ndarray__": [
+                7,
+                9
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            }
+          },
+          "label": "TxCov",
+          "color": "purple",
+          "alpha": 0.4,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "s13_split_fallthrough_no_by_transcript": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "coverage",
+          "data": {
+            "x": {
+              "__ndarray__": [
+                93,
+                406
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            },
+            "y": {
+              "__ndarray__": [
+                1,
+                2
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            }
+          },
+          "label": "SplitFallthrough",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "s14_no_exons_window_fallback": {
+    "ok": true,
+    "value": {
+      "gene_id": "g0",
+      "identifier_type": "gene_id",
+      "original_identifier": "gZ",
+      "seqname": "chrZ",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "t0",
+          "strand": "+",
+          "exons": [],
+          "cds": []
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "coverage",
+          "data": {
+            "x": {
+              "__ndarray__": [
+                100,
+                101
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            },
+            "y": {
+              "__ndarray__": [
+                7,
+                9
+              ],
+              "dtype": "int64",
+              "shape": [
+                2
+              ]
+            }
+          },
+          "label": "TxCov",
+          "color": "purple",
+          "alpha": 0.4,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "s15_split_multi_gene_error": {
+    "ok": false,
+    "error_type": "ValueError",
+    "error": "split_by_transcript does not support multiple genes"
+  },
+  "w01_window_all_transcripts": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "__region__": [
+              {
+                "chrom": "chr1",
+                "start": 93,
+                "end": 406
+              }
+            ]
+          },
+          "label": "EchoRegion",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "w02_window_transcript_to_show": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "__region__": [
+              {
+                "chrom": "chr1",
+                "start": 298,
+                "end": 401
+              }
+            ]
+          },
+          "label": "EchoRegion",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "w03_window_multi_gene": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1, gene2",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "tx1",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            }
+          ],
+          "cds": []
+        },
+        {
+          "transcript_id": "tx2",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 2000,
+              "end": 2049,
+              "number": 1
+            }
+          ],
+          "cds": []
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "__region__": [
+              {
+                "chrom": "chr1",
+                "start": 52,
+                "end": 2097
+              }
+            ]
+          },
+          "label": "EchoRegion",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "w04_window_no_exon_fallback": {
+    "ok": true,
+    "value": {
+      "gene_id": "g0",
+      "identifier_type": "gene_id",
+      "original_identifier": "gZ",
+      "seqname": "chrZ",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "t0",
+          "strand": "+",
+          "exons": [],
+          "cds": []
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "distribution",
+          "data": {
+            "__region__": [
+              {
+                "chrom": "chrZ",
+                "start": 0,
+                "end": 1000
+              }
+            ]
+          },
+          "label": "EchoRegion",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "i01_identifier_single_gene": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "ENST00000111111",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            },
+            {
+              "start": 200,
+              "end": 249,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 110,
+              "end": 140
+            },
+            {
+              "start": 205,
+              "end": 235
+            }
+          ]
+        },
+        {
+          "transcript_id": "ENST00000999999",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 300,
+              "end": 339,
+              "number": 1
+            },
+            {
+              "start": 360,
+              "end": 399,
+              "number": 2
+            }
+          ],
+          "cds": [
+            {
+              "start": 305,
+              "end": 330
+            },
+            {
+              "start": 365,
+              "end": 390
+            }
+          ]
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "coverage",
+          "data": {
+            "x": [
+              "'gene1'"
+            ],
+            "y": [
+              "str"
+            ]
+          },
+          "label": "EchoIdent",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  },
+  "i02_identifier_multi_gene_raw_list": {
+    "ok": true,
+    "value": {
+      "gene_id": "gene1",
+      "identifier_type": "gene_id",
+      "original_identifier": "gene1, gene2",
+      "seqname": "chr1",
+      "strand": "+",
+      "transcripts": [
+        {
+          "transcript_id": "tx1",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 100,
+              "end": 149,
+              "number": 1
+            }
+          ],
+          "cds": []
+        },
+        {
+          "transcript_id": "tx2",
+          "strand": "+",
+          "exons": [
+            {
+              "start": 2000,
+              "end": 2049,
+              "number": 1
+            }
+          ],
+          "cds": []
+        }
+      ],
+      "prepared_tracks": [
+        {
+          "kind": "coverage",
+          "data": {
+            "x": [
+              "['gene1', 'gene2']"
+            ],
+            "y": [
+              "list"
+            ]
+          },
+          "label": "EchoIdent",
+          "color": "orange",
+          "alpha": 0.8,
+          "y_axis_range": null,
+          "y_axis_group": null,
+          "file_colors": null,
+          "file_alphas": null,
+          "layer_order": "ascending"
+        }
+      ]
+    }
+  }
+}
