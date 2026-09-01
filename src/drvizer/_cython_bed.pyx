@@ -111,7 +111,9 @@ def _record_in_region(record, region):
 
 
 def parse_bed_records(bed_file_paths, region=None):
-    grouped = defaultdict(list)
+    # PARSER-011: cdef object avoids Cython 3 strict-mode "Expected dict, got defaultdict"
+    # rejection; behaviorally identical to plain defaultdict(list).
+    cdef object grouped = defaultdict(list)
     cdef object bed_file_path
     cdef object handle
     cdef object raw_line
