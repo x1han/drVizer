@@ -223,7 +223,7 @@ These were added in v0.1.0 and are now part of the public contract.
 
 ```python
 import drvizer
-assert drvizer.__version__ == "0.1.0"
+assert drvizer.__version__ == "0.1.1"
 ```
 
 `drvizer.__version__` matches `importlib.metadata.version("drvizer")` so
