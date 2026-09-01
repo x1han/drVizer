@@ -156,8 +156,9 @@ def test_split_by_transcript_none_preserves_legacy_track_behavior(transcript_spl
 
     assert sorted(grouped) == ["peakA1", "peakA2"]
     assert grouped["peakA1"][0]["chrom"] == "chr1"
-    assert grouped["peakA1"][0]["start"] == 105
-    assert grouped["peakA2"][0]["start"] == 308
+    # 0-based half-open projection: GTF exon start 100 -> 99, 300 -> 299.
+    assert grouped["peakA1"][0]["start"] == 104
+    assert grouped["peakA2"][0]["start"] == 307
 
 
 def test_bed_parser_groups_annotations_by_transcript(transcript_split_gtf, transcript_split_bed_a, transcript_split_bed_b):
@@ -173,8 +174,9 @@ def test_bed_parser_groups_annotations_by_transcript(transcript_split_gtf, trans
     assert list(grouped) == ["ENST00000111111", "ENST00000999999"]
     assert sorted(grouped["ENST00000111111"]) == ["peakA1", "peakB1"]
     assert grouped["ENST00000111111"]["peakA1"][0]["chrom"] == "chr1"
-    assert grouped["ENST00000111111"]["peakA1"][0]["start"] == 105
-    assert grouped["ENST00000999999"]["peakB2"][0]["end"] == 335
+    # 0-based half-open projection: GTF exon start 100 -> 99, 300 -> 299.
+    assert grouped["ENST00000111111"]["peakA1"][0]["start"] == 104
+    assert grouped["ENST00000999999"]["peakB2"][0]["end"] == 334
 
 
 def test_mixed_split_modes_are_rejected(transcript_split_gtf, transcript_split_bed_a, transcript_split_bed_b):
@@ -276,9 +278,10 @@ def test_bam_parser_returns_coverage_by_transcript(monkeypatch, transcript_split
     grouped = parser.get_coverage_by_transcript('gene1')
 
     assert list(grouped) == ['ENST00000111111', 'ENST00000999999']
-    assert grouped['ENST00000111111']['x'][5:12].tolist() == [105, 106, 107, 108, 109, 110, 111]
+    # 0-based half-open: BAM region_start = exon['start'] - 1, so x shifts by -1.
+    assert grouped['ENST00000111111']['x'][5:12].tolist() == [104, 105, 106, 107, 108, 109, 110]
     assert grouped['ENST00000111111']['y'][5:12].tolist() == [1, 1, 1, 0, 0, 1, 1]
-    assert grouped['ENST00000999999']['x'][2:5].tolist() == [302, 303, 304]
+    assert grouped['ENST00000999999']['x'][2:5].tolist() == [301, 302, 303]
     assert grouped['ENST00000999999']['y'][2:5].tolist() == [1, 1, 1]
 
 
@@ -463,11 +466,12 @@ def test_mixed_genomic_and_split_transcript_tracks_preserve_genomic_coordinates(
     assert te_track['data']['peak4'][0]['start'] == 405
 
     assert first_split_track['transcript_id'] == 'ENST00000111111'
-    assert first_split_track['data']['x'][5:12].tolist() == [105, 106, 107, 108, 109, 110, 111]
+    # 0-based half-open: BAM region_start = exon['start'] - 1, so x shifts by -1.
+    assert first_split_track['data']['x'][5:12].tolist() == [104, 105, 106, 107, 108, 109, 110]
     assert first_split_track['data']['y'][5:12].tolist() == [1, 1, 1, 0, 0, 1, 1]
 
     assert second_split_track['transcript_id'] == 'ENST00000999999'
-    assert second_split_track['data']['x'][2:5].tolist() == [302, 303, 304]
+    assert second_split_track['data']['x'][2:5].tolist() == [301, 302, 303]
     assert second_split_track['data']['y'][2:5].tolist() == [1, 1, 1]
 
 
@@ -494,7 +498,17 @@ def test_prepared_tracks_keep_score_kind_for_split_bed(transcript_split_gtf, tra
     assert payload['prepared_tracks'][0]['file_alphas'] == [0.1, 0.25]
 
 
-def test_reusable_parser_skips_labels_for_empty_split_tracks(transcript_split_gtf, tmp_bed_second):
+def test_reusable_parser_marks_empty_split_tracks_with_placeholder(transcript_split_gtf, tmp_bed_second):
+    """Empty (track, transcript) combos get an `empty: True` placeholder.
+
+    Under the Phase 1 empty-track contract, missing combos are padded
+    explicitly (instead of being silently dropped) so the visualizer can
+    short-circuit on track.get('empty') and the right-side label groups
+    stay aligned with prepared_tracks indexing. tmp_bed_second is a
+    genomic BED (chr1-based), so when used as a transcript-coord split
+    track, no transcript has any records -> every transcript produces
+    an empty placeholder.
+    """
     parser = (
         DrViz()
         .load_gtf(str(transcript_split_gtf))
@@ -511,8 +525,14 @@ def test_reusable_parser_skips_labels_for_empty_split_tracks(transcript_split_gt
 
     gene_data = parser.data_source.get_transcript_data('gene1')
 
-    assert [track['label'] for track in gene_data['prepared_tracks']] == ['TE']
+    track_labels = [track['label'] for track in gene_data['prepared_tracks']]
+    assert track_labels == ['TE', 'm6A', 'm6A']
     assert [config['label'] for config in parser.track_configs] == ['TE', 'm6A']
+
+    split_entries = [track for track in gene_data['prepared_tracks'] if track.get('label') == 'm6A']
+    assert len(split_entries) == 2
+    assert all(entry.get('empty') for entry in split_entries)
+    assert all(entry.get('transcript_id') for entry in split_entries)
 
 
 def test_split_bed_tracks_are_projected_to_genomic_coordinates(transcript_split_gtf, transcript_split_bed_a):
@@ -533,4 +553,5 @@ def test_split_bed_tracks_are_projected_to_genomic_coordinates(transcript_split_
 
     first_track_elements = next(iter(payload['prepared_tracks'][0]['data'].values()))
     assert first_track_elements[0]['chrom'] == 'chr1'
-    assert first_track_elements[0]['start'] == 105
+    # 0-based half-open projection: GTF exon start 100 -> 99 origin.
+    assert first_track_elements[0]['start'] == 104
