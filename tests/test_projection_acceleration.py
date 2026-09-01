@@ -47,27 +47,28 @@ def test_64bit_and_zero_based_parity(tmp_path, monkeypatch):
     """Lock int64 promotion + 0-based half-open + Python/Cython parity.
 
     Fixture GTF exons:
-      exon1: GTF 1-based inclusive [2300000000, 2300000049] -> 0-based half-open [2300000000, 2300000050)
-      exon2: GTF 1-based inclusive [2300000100, 2300000149] -> 0-based half-open [2300000100, 2300000150)
+      exon1: GTF 1-based inclusive [2300000000, 2300000049] (50 bases)
+      exon2: GTF 1-based inclusive [2300000100, 2300000149] (50 bases)
 
     Transcript coordinates:
       exon1 spans transcript [0, 50)
       exon2 spans transcript [50, 100)
 
-    Case A (single exon): convert_transcript_to_genomic_segments('TX1', 10, 30)
-      only overlaps transcript [10, 30) within exon1.
-      Expected (0-based half-open): [(2299999999 + 10, 2299999999 + 30)]
-                                  = [(2300000009, 2300000039)]
+    Case A (single-exon): convert(transcript [10, 30))
+      transcript [10, 30) is fully inside exon1's transcript [0, 50),
+      so the projection is a SINGLE interval:
+        genomic_start = (2300000000 - 1) + (10 - 0) = 2300000009
+        genomic_end   = (2300000000 - 1) + (30 - 0) = 2300000029
 
-    Case B (junctions): convert_transcript_to_genomic_segments('TX1', 40, 60)
-      hits the exon1/exon2 seam, transcript [40, 50) in exon1 and [50, 60) in exon2.
-      Expected:
-        exon1: (2299999999 + 40, 2299999999 + 50) = (2300000039, 2300000049)
-        exon2: (2299999999 + 50, 2299999999 + 60) = (2300000049, 2300000059)
-      Sorted: [(2300000039, 2300000049), (2300000049, 2300000059)]
+    Case B (junction): convert(transcript [40, 60))
+      transcript [40, 50) lives in exon1, transcript [50, 60) in exon2:
+        exon1: (2300000000 - 1) + (40, 50) = (2300000039, 2300000049)
+        exon2: (2300000100 - 1) + (0, 10)  = (2300000099, 2300000109)
+      Sorted: [(2300000039, 2300000049), (2300000099, 2300000109)]
 
-    The test runs both arms (Cython fast path + Python fallback) via
-    monkeypatch and asserts identical results.
+    Each case runs the parser twice: once with whatever fast path is
+    bound, once with monkeypatched _project_segments_fast=None to
+    force the Python fallback. Parity is asserted alongside values.
     """
     import textwrap
 
@@ -80,7 +81,7 @@ def test_64bit_and_zero_based_parity(tmp_path, monkeypatch):
     ))
 
     def run_case(transcript_start, transcript_end):
-        # First arm: whatever is currently loaded (Cython if built, else Python).
+        # First arm: whatever fast path is currently bound (Cython if built).
         parser = GTFParser(str(gtf))
         parser.parse_gtf()
         fast_result = parser.convert_transcript_to_genomic_segments("TX1", transcript_start, transcript_end)
@@ -95,8 +96,12 @@ def test_64bit_and_zero_based_parity(tmp_path, monkeypatch):
 
     fast_a, python_a = run_case(10, 30)
     assert fast_a == python_a
-    assert fast_a == ("chr1", "+", [(2300000009, 2300000039)])
+    assert fast_a == ("chr1", "+", [(2300000009, 2300000029)])
 
     fast_b, python_b = run_case(40, 60)
     assert fast_b == python_b
-    assert fast_b == ("chr1", "+", [(2300000039, 2300000049), (2300000049, 2300000059)])
+    assert fast_b == (
+        "chr1",
+        "+",
+        [(2300000039, 2300000049), (2300000099, 2300000109)],
+    )
