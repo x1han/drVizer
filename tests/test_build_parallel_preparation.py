@@ -70,7 +70,7 @@ def test_build_runs_only_genomic_bed_preparation_in_processes(tmp_gtf, tmp_bed, 
     viz = DrViz().load_gtf(str(tmp_gtf))
     observed_calls = []
 
-    def fake_parallel_prepare(specs, gtf_parser):
+    def fake_parallel_prepare(specs, gtf_parser, adaptive_threshold=20_000, data_source=None):
         observed_calls.extend((spec["label"], spec["kind"], spec.get("transcript_coord", False)) for spec in specs)
         return [FakePreparedTrack(spec["label"]) for spec in specs]
 
@@ -118,7 +118,7 @@ def test_build_strictly_fails_when_any_track_preparation_fails(tmp_gtf, tmp_bed,
 def test_build_preserves_registration_order_when_genomic_bed_uses_process_pool(tmp_gtf, tmp_bed, tmp_bed_second, monkeypatch):
     viz = DrViz().load_gtf(str(tmp_gtf))
 
-    def fake_parallel_prepare(specs, gtf_parser):
+    def fake_parallel_prepare(specs, gtf_parser, adaptive_threshold=20_000, data_source=None):
         return [FakePreparedTrack("second"), FakePreparedTrack("first")]
 
     monkeypatch.setattr("drvizer.api.prepare_tracks_parallel", fake_parallel_prepare)
@@ -282,7 +282,7 @@ def test_add_bed_track_rejects_y_axis_group_for_distribution_tracks(tmp_gtf, tmp
 def test_build_makes_duplicate_track_labels_unique_in_registration_order(tmp_gtf, tmp_bed, tmp_bed_second, monkeypatch):
     viz = DrViz().load_gtf(str(tmp_gtf))
 
-    def fake_parallel_prepare(specs, gtf_parser):
+    def fake_parallel_prepare(specs, gtf_parser, adaptive_threshold=20_000, data_source=None):
         return [FakePreparedTrack(spec["label"]) for spec in reversed(specs)]
 
     monkeypatch.setattr("drvizer.api.prepare_tracks_parallel", fake_parallel_prepare)

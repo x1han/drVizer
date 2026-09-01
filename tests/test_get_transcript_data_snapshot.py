@@ -478,3 +478,51 @@ def test_scenario_count_matches_artifact():
     recorded = json.loads(ARTIFACT.read_text())
     assert set(recorded.keys()) == set(SCENARIO_IDS)
     assert len(recorded) == len(SCENARIO_IDS)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.2 cache-hit scenario
+# ---------------------------------------------------------------------------
+
+def test_cache_hit_returns_same_payload_without_reparse(tmp_gtf, tmp_bed, tmp_bed_second):
+    """Same query twice on the same ReusableParser must hit the LRU
+    cache: identical prepared_tracks payload, no second parse call.
+    """
+    # Construct a DrViz with one BED track, build it, and call
+    # get_transcript_data twice. The second call must produce the
+    # same payload bytes-for-bytes and must NOT trigger a new
+    # parse_bed on the BEDParser.
+    from drvizer.bed_parser import BEDParser
+
+    parse_calls = {"n": 0}
+    original_parse = BEDParser.parse_bed
+
+    def counting_parse(self, *args, **kwargs):
+        parse_calls["n"] += 1
+        return original_parse(self, *args, **kwargs)
+
+    monkeypatch = pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(BEDParser, "parse_bed", counting_parse)
+        from drvizer.api import DrViz
+        viz = (
+            DrViz()
+            .load_gtf(str(tmp_gtf))
+            .add_bed_track(str(tmp_bed), label="TE")
+        )
+        parser = viz.build()
+        # Reset the counter: build() is allowed to parse.
+        parse_calls["n"] = 0
+
+        first = parser.data_source.get_transcript_data("GENE1")
+        first_calls = parse_calls["n"]
+        second = parser.data_source.get_transcript_data("GENE1")
+        second_calls = parse_calls["n"]
+
+        # No new parse on the second call.
+        assert first_calls == 0
+        assert second_calls == 0
+        # Identical payload (cache hit returns the same dict).
+        assert first["prepared_tracks"] == second["prepared_tracks"]
+    finally:
+        monkeypatch.undo()

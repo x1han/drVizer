@@ -177,3 +177,11 @@ AGENTS.md
 # Benchmark result artifacts
 benchmarks/results.json
 benchmarks/results-*.json
+benchmarks/cache_vs_no_cache.json
+benchmarks/cache_vs_no_cache-*.json
+benchmarks/phase_2_2_cache.json
+benchmarks/phase_2_2_cache-*.json
+benchmarks/*.tmp
+benchmarks/bench_small_*
+benchmarks/bench_whole_*
+benchmarks/bench_medium_*

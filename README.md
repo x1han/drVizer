@@ -57,6 +57,30 @@ fig = parser.plot("TP53", show=False)
 
 `build()` freezes the configured GTF and tracks into a reusable parser, so plotting many genes does not repeat setup work.
 
+### Reusable parser with auto-cleanup (Phase 2.2)
+
+`DrViz` is also a context manager; using it as such hands back the
+prepared `ReusableParser` and tears down the cache + lazy
+`ProcessPool` on exit:
+
+```python
+from drvizer import DrViz
+
+with DrViz().load_gtf("genes.gtf").add_bed_track("repeats.bed", label="TE") as parser:
+    for gene in ("TP53", "BRCA1", "MYC"):
+        fig = parser.plot(gene, show=False)
+# cache cleared, pool shut down with wait=True
+```
+
+Cache and pool configuration:
+
+- `DrViz(cache_maxsize=N)` — LRU cache capacity (default 128).
+  Caches are per-parser-instance; each new `build()` constructs a
+  fresh cache.
+- `DrViz(adaptive_threshold=N)` — minimum total BED record count
+  that opens a `ProcessPool` during build (default 20_000). Below
+  the threshold, build is purely sequential.
+
 ## Core API
 
 ### `load_gtf(...)`
