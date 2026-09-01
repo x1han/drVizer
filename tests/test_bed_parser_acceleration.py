@@ -329,3 +329,38 @@ def test_parse_bed_region_filter_accepts_zero_start(tmp_path, monkeypatch):
             }
         ]
     }
+
+
+def test_int64_coordinate_round_trip(tmp_path, monkeypatch):
+    """Records with start >= 2**31 must round-trip identically through both parsers."""
+    bed_path = tmp_path / "int64.bed"
+    bed_path.write_text(
+        "chr1\t2300000000\t2300000500\tpeak\t10\t+\t2300000050\t2300000450\t255,0,0\n"
+    )
+
+    # Python fallback baseline.
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", False)
+    parser_python = BEDParser(str(bed_path))
+    python_records = parser_python.parse_bed()["chr1"]
+
+    if not bed_parser._CYTHON_BED_AVAILABLE:
+        # Cython extension not built in this env -- still assert Python path is correct.
+        record = python_records[0]
+        assert record["start"] == 2300000000
+        assert record["end"] == 2300000500
+        assert record["thickStart"] == 2300000050
+        assert record["thickEnd"] == 2300000450
+        return
+
+    monkeypatch.setattr("drvizer.bed_parser._CYTHON_BED_AVAILABLE", True)
+    parser_cython = BEDParser(str(bed_path))
+    cython_records = parser_cython.parse_bed()["chr1"]
+
+    assert len(cython_records) == len(python_records) == 1
+    for key in ("chrom", "name", "score", "strand", "itemRgb"):
+        assert cython_records[0][key] == python_records[0][key]
+    # int64 promotion: coords must survive past the 2**31 boundary intact.
+    assert cython_records[0]["start"] == 2300000000 == python_records[0]["start"]
+    assert cython_records[0]["end"] == 2300000500 == python_records[0]["end"]
+    assert cython_records[0]["thickStart"] == 2300000050 == python_records[0]["thickStart"]
+    assert cython_records[0]["thickEnd"] == 2300000450 == python_records[0]["thickEnd"]
