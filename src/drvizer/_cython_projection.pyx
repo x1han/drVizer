@@ -1,16 +1,19 @@
 # cython: language_level=3
 
+from libc.stdint cimport int64_t
+
+
 def project_segments(list projection_exons, str strand, int transcript_start, int transcript_end):
-    cdef int interval_start = transcript_start if transcript_start <= transcript_end else transcript_end
-    cdef int interval_end = transcript_end if transcript_end >= transcript_start else transcript_start
+    cdef int64_t interval_start = transcript_start if transcript_start <= transcript_end else transcript_end
+    cdef int64_t interval_end = transcript_end if transcript_end >= transcript_start else transcript_start
     cdef list segments = []
     cdef object exon
-    cdef int exon_t_start
-    cdef int exon_t_end
-    cdef int overlap_start
-    cdef int overlap_end
-    cdef int genomic_start
-    cdef int genomic_end
+    cdef int64_t exon_t_start
+    cdef int64_t exon_t_end
+    cdef int64_t overlap_start
+    cdef int64_t overlap_end
+    cdef int64_t genomic_start
+    cdef int64_t genomic_end
 
     if interval_start == interval_end:
         return segments
@@ -20,11 +23,18 @@ def project_segments(list projection_exons, str strand, int transcript_start, in
         overlap_end = interval_end if interval_end < exon_t_end else exon_t_end
         if overlap_start < overlap_end:
             if strand == "+":
-                genomic_start = exon["start"] + (overlap_start - exon_t_start)
-                genomic_end = exon["start"] + (overlap_end - exon_t_start)
+                # 0-based half-open projection on the GTF start side.
+                # GTF 'start' is 1-based inclusive (e.g. 100 -> 1-based start),
+                # so the equivalent 0-based half-open origin is (exon['start'] - 1).
+                genomic_start = (exon["start"] - 1) + (overlap_start - exon_t_start)
+                genomic_end = (exon["start"] - 1) + (overlap_end - exon_t_start)
             else:
-                genomic_start = exon["end"] - (overlap_end - exon_t_start) + 1
-                genomic_end = exon["end"] - (overlap_start - exon_t_start) + 1
+                # Minus strand: 0-based half-open projection that mirrors the
+                # plus strand by reading the exon right-edge in 0-based half-
+                # open coordinates. Width is preserved across the convention
+                # switch; the right edge drops the prior + 1 quirk.
+                genomic_start = exon["end"] - (overlap_end - exon_t_start)
+                genomic_end = exon["end"] - (overlap_start - exon_t_start)
             if genomic_start > genomic_end:
                 genomic_start, genomic_end = genomic_end, genomic_start
             segments.append((genomic_start, genomic_end))
