@@ -173,3 +173,7 @@ plan/
 docs/superpowers/
 .gitnexus
 AGENTS.md
+
+# Benchmark result artifacts
+benchmarks/results.json
+benchmarks/results-*.json
