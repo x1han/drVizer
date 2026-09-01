@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import multiprocessing
 
 import numpy as np
@@ -38,21 +40,21 @@ def _compute_region_coverage(args):
     return compute_region_coverage(*args)
 
 
-# P1-8: Per-bam-path wrapper -- the panel mandate says we must catch the full
-# worker exception, chain it, and surface a per-path message. The Pool
-# worker returns the coverage ndarray on success and raises the original
-# exception on failure; we re-raise here as ParallelCoverageError chained
-# from the worker exception so callers see both the BAM path AND the root
-# cause. The pool's imap_unordered iteration then surfaces a single
-# ParallelCoverageError with the original traceback attached via __cause__.
-def _compute_region_coverage_with_path(args):
+# Phase 8 tuple-return contract: the worker now returns
+# ``Tuple[str, np.ndarray]`` -- (bam_path, coverage_array) -- so per-bam
+# attribution is encoded in the data shape rather than in a closure
+# binding. The exception path still raises ``ParallelCoverageError`` chained
+# from the worker exception INSIDE the worker so the ``__cause__`` chain
+# survives the imap_unordered boundary intact.
+def _compute_region_coverage_with_path(args) -> Tuple[str, np.ndarray]:
     bam_path = args[0]
     try:
-        return compute_region_coverage(*args)
+        coverage = compute_region_coverage(*args)
     except Exception as exc:
         raise ParallelCoverageError(
             f"Failed to compute coverage for {bam_path}: {exc}"
         ) from exc
+    return bam_path, coverage
 
 
 def aggregate_region_coverages_parallel(bam_paths, chrom, start, end, contained_only=True):
@@ -73,7 +75,13 @@ def aggregate_region_coverages_parallel(bam_paths, chrom, start, end, contained_
     worker_count = min(len(bam_paths), cpu_count, 32)
     total_coverage = np.zeros(end - start, dtype=np.int64)
     with multiprocessing.Pool(processes=worker_count) as pool:
-        for coverage in pool.imap_unordered(
+        # Phase 8 tuple contract: each imap_unordered result is
+        # (bam_path, coverage_array). Attribution is now a property of
+        # the returned data; aggregation is still order-independent
+        # because we only read coverage (bam_path is unused here, but
+        # preserved in the return value for downstream attribution
+        # needs).
+        for bam_path, coverage in pool.imap_unordered(
             _compute_region_coverage_with_path,
             [
                 (path, chrom, start, end, contained_only)

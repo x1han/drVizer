@@ -4,6 +4,74 @@ All notable changes to drVizer are documented here. Versions follow
 [Semantic Versioning](https://semver.org/). The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.1] - 2026-09-02
+
+### Added
+- **CI matrix workflow** (`.github/workflows/ci.yml`): ubuntu-latest
+  on push to `main` and on `pull_request`, with a Python 3.8 - 3.12
+  matrix. Steps include a dedicated Cython build-prerequisites install
+  (mirroring `.github/workflows/benchmarks.yml`) so the editable
+  install compiles its Cython extensions on every runner, then
+  `pytest -q` for the test suite. macOS is intentionally excluded
+  from this matrix because Cython compilation on macOS is unvalidated
+  in the maintainer's Linux/DSR environment and risks a workflow that
+  fails on first push; it can be added in a follow-up phase once the
+  Linux matrix is proven stable across several push cycles.
+- **Release workflow** (`.github/workflows/release.yml`): triggered by
+  push tags matching `v*`. Three sequential jobs: (1) `build` runs
+  `python -m build` and `twine check dist/*`; (2) `test-pypi` always
+  uploads the built artifact to TestPyPI as a dry-run / canary
+  validation step using the `TESTPYPI_API_TOKEN` secret; (3)
+  `publish-pypi` uploads to production PyPI using the
+  `PYPI_API_TOKEN` secret, gated on a `pypi` GitHub environment that
+  requires manual approval via environment protection rules. **No
+  auto-publish on first run.** The upload-artifact / download-artifact
+  pair is wired so the `dist/` directory flows from `build` to both
+  publish jobs.
+- **Editable install gotcha section** in `CLAUDE.md`: documents that
+  switching git branches (especially after manual ref manipulation
+  such as `git update-ref refs/heads/main <sha>` or `git symbolic-ref
+  HEAD refs/heads/main`) leaves the editable install pointing at the
+  old `src/`. Mandated command:
+  `/datf/hanxi/software/miniconda3/envs/DRS/bin/pip install
+  --force-reinstall --no-deps -e .` after every merge.
+
+### Changed
+- **Tuple-return worker contract** (P1-8, Phase 7 PARTIALLY-FIXED ->
+  FIXED; `src/drvizer/_parallel.py`): the
+  `_compute_region_coverage_with_path` worker now returns
+  `Tuple[str, np.ndarray]` -- `(bam_path, coverage_array)` -- so
+  per-bam-path attribution is encoded in the data shape instead of in
+  the closure binding that Phase 7 relied on. The master loop in
+  `aggregate_region_coverages_parallel` unpacks the tuple:
+  `for bam_path, coverage in pool.imap_unordered(...)`. This is a
+  **refactor for clarity and test maintainability**, not a
+  correctness fix: the Phase 7 closure binding was functionally
+  correct (the `bam_path` was bound into the worker closure, the
+  error message included the path, and master aggregation was
+  order-independent). v0.1.0's "Fixed: imap_unordered attribution
+  invariant" entry describes the original closure-binding contract;
+  v0.1.1's "Changed: tuple-return worker contract" describes the same
+  invariant re-expressed as a data shape. The worker still raises
+  `ParallelCoverageError(... from exc)` inside the worker so the
+  `__cause__` chain survives the `imap_unordered` boundary intact.
+- **Test mocks updated** to match the new contract: 4 FakePool mocks
+  across `tests/test_bam_parallel.py` and
+  `tests/test_phase_3_cpu_guard.py` now return `(bam_path,
+  coverage_array)` tuples derived from `args[i][0]`, and the Phase 7
+  `tests/test_phase_7_imap_unordered.py` order-independence test
+  also returns `(bam_path, coverage_array)` tuples in reversed
+  arrival order. Net: the worker contract is exercised end-to-end in
+  every mock that previously returned a raw ndarray.
+
+### Notes
+- v0.1.0 was tagged locally only (commit `dd33199`) and was **never
+  pushed to PyPI**. v0.1.1 is therefore the first PyPI release of
+  drVizer without breaking any existing install.
+- No throughput numbers or speedup claims appear in this release.
+  The GENCODE + ENCODE + pyGenomeTracks comparison is research-grade
+  work that belongs to a separate Stage 3 project, not to v0.1.1.
+
 ## [0.1.0] - 2026-09-01
 
 ### Added

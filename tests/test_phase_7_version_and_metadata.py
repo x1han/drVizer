@@ -2,15 +2,15 @@
 
 The first public release is v0.1.0. Two assertions:
 
-* ``drvizer.__version__`` equals the string ``"0.1.0"`` AND
+* ``drvizer.__version__`` equals the string ``"0.1.1"`` AND
   ``importlib.metadata.version("drvizer")`` returns the same string.
 * The ``pyproject.toml [project]`` classifiers include Python 3.8
   through 3.12 and ``Development Status :: 4 - Beta``.
 
 Tests:
 
-* ``test_version_string_matches_0_1_0``
-    Both introspection paths return ``"0.1.0"``.
+* ``test_version_string_matches_0_1_1``
+    Both introspection paths return ``"0.1.1"``.
 
 * ``test_pyproject_classifiers_include_python_38_through_312``
     The PEP 621 classifiers list contains every Python 3.8-3.12
@@ -31,17 +31,17 @@ from pathlib import Path
 import pytest
 
 
-def test_version_string_matches_0_1_0():
+def test_version_string_matches_0_1_1():
     """Both ``drvizer.__version__`` and ``importlib.metadata.version``
-    must return the v0.1.0 string."""
+    must return the v0.1.1 string."""
     import drvizer
 
-    assert drvizer.__version__ == "0.1.0", (
-        f"drvizer.__version__ must equal '0.1.0'; got {drvizer.__version__!r}"
+    assert drvizer.__version__ == "0.1.1", (
+        f"drvizer.__version__ must equal '0.1.1'; got {drvizer.__version__!r}"
     )
     metadata_version = importlib.metadata.version("drvizer")
-    assert metadata_version == "0.1.0", (
-        f"importlib.metadata.version('drvizer') must equal '0.1.0'; got {metadata_version!r}"
+    assert metadata_version == "0.1.1", (
+        f"importlib.metadata.version('drvizer') must equal '0.1.1'; got {metadata_version!r}"
     )
     assert drvizer.__version__ == metadata_version, (
         f"drvizer.__version__ and importlib.metadata.version must agree; "

@@ -1,0 +1,64 @@
+name: ci
+
+# Phase 8 CI matrix. Triggered on push to main and on pull_request.
+# ubuntu-latest ONLY (macos-latest is intentionally excluded; Cython
+# compilation on macOS is unvalidated in the maintainer's Linux/DSR
+# environment -- can be added in a follow-up phase once the Linux
+# matrix is proven stable).
+#
+# The trigger key is quoted so YAML 1.1 does not coerce ``on`` to the
+# boolean True (it would still parse, but downstream tooling that
+# double-loads the file as JSON would see {"on": true} instead of
+# {"on": ...}). This mirrors the precedent set in benchmarks.yml.
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Versions quoted so 3.10/3.11/3.12 are not silently truncated
+        # to 3.1 by YAML 1.1 unquoted scalars.
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install build prerequisites
+        # Mirrors .github/workflows/benchmarks.yml:43 -- Cython must be
+        # installed explicitly before `pip install -e .` so the
+        # editable install compiles its Cython extensions on every
+        # runner, even ones without Cython preinstalled.
+        run: |
+          python -m pip install --upgrade pip setuptools wheel Cython
+
+      - name: Install package (editable, compile per-matrix)
+        # pyproject build-system already requires Cython>=3 and no
+        # .so binaries are tracked, so each matrix leg compiles its
+        # own ABI-correct extensions.
+        run: |
+          pip install -e .[test]
+
+      - name: Install optional BAM runtime
+        # pysam is needed for drvizer.bam_parser to import cleanly,
+        # so the BAM-side test modules can collect without errors.
+        run: |
+          pip install pysam
+
+      - name: Run tests
+        run: |
+          pytest -q

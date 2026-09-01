@@ -39,9 +39,12 @@ def test_cpu_count_none_falls_back_to_one(monkeypatch):
             return False
 
         def imap_unordered(self, function, args):
-            # Return a coverage ndarray per task so the caller can sum.
+            # Phase 8 tuple-return contract: each task returns
+            # (bam_path, coverage_array). Derive bam_path from args[i][0]
+            # so the new contract is exercised end-to-end.
             return [
-                np.zeros(args[0][3] - args[0][2], dtype=np.int64) for _ in args
+                (args[i][0], np.zeros(args[i][3] - args[i][2], dtype=np.int64))
+                for i in range(len(args))
             ]
 
     monkeypatch.setattr(_parallel.multiprocessing, "cpu_count", lambda: None)

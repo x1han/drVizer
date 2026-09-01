@@ -78,13 +78,14 @@ def test_imap_unordered_aggregation_is_order_independent(monkeypatch):
             return False
 
         def imap_unordered(self, function, args):
-            # FakePool returns coverage arrays directly without invoking
-            # the real worker, matching the existing test pattern in
-            # tests/test_bam_parallel.py. We deliberately return the
-            # results in REVERSE order from the input args so the
-            # consumer sees results out of order.
+            # Phase 8 tuple-return contract: each task returns
+            # (bam_path, coverage_array). We deliberately return the
+            # (bam_path, array) tuples in REVERSE order from the input
+            # args so the consumer sees results out of order. The
+            # master loop's tuple-unpacking handles the reversal
+            # transparently.
             ordered_results = [
-                np.full(args[0][3] - args[0][2], i + 1, dtype=np.int64)
+                (args[i][0], np.full(args[i][3] - args[i][2], i + 1, dtype=np.int64))
                 for i in range(len(args))
             ]
             return list(reversed(ordered_results))

@@ -129,7 +129,10 @@ def test_parallel_coverage_caps_worker_count(monkeypatch):
             return False
 
         def imap_unordered(self, function, args):
-            return [np.zeros(args[0][3] - args[0][2], dtype=np.int64) for _ in args]
+            # Phase 8 tuple-return contract: each result is
+            # (bam_path, coverage_array). Derive bam_path from
+            # args[i][0] so attribution is exercised end-to-end.
+            return [(args[i][0], np.zeros(args[i][3] - args[i][2], dtype=np.int64)) for i in range(len(args))]
 
     monkeypatch.setattr(_parallel.multiprocessing, "Pool", FakePool)
     monkeypatch.setattr(_parallel.multiprocessing, "cpu_count", lambda: 4)
@@ -151,9 +154,10 @@ def test_parallel_coverage_uses_int64_accumulator(monkeypatch):
             return False
 
         def imap_unordered(self, function, args):
+            # Phase 8 tuple-return contract: (bam_path, coverage_array).
             return [
-                np.array([np.iinfo(np.int32).max], dtype=np.int32),
-                np.array([1], dtype=np.int32),
+                (args[0][0], np.array([np.iinfo(np.int32).max], dtype=np.int32)),
+                (args[1][0], np.array([1], dtype=np.int32)),
             ]
 
     monkeypatch.setattr(_parallel.multiprocessing, "Pool", FakePool)
@@ -213,7 +217,8 @@ def test_parallel_coverage_defaults_cpu_count_when_unavailable(monkeypatch):
             return False
 
         def imap_unordered(self, function, args):
-            return [np.zeros(args[0][3] - args[0][2], dtype=np.int64) for _ in args]
+            # Phase 8 tuple-return contract: (bam_path, coverage_array).
+            return [(args[i][0], np.zeros(args[i][3] - args[i][2], dtype=np.int64)) for i in range(len(args))]
 
     monkeypatch.setattr(_parallel.multiprocessing, "Pool", FakePool)
     monkeypatch.setattr(
