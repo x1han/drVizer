@@ -46,12 +46,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel Cython
 
-      - name: Install package (editable, compile per-matrix)
-        # pyproject build-system already requires Cython>=3 and no
-        # .so binaries are tracked, so each matrix leg compiles its
-        # own ABI-correct extensions.
+      - name: Build wheel
+        # Build a real wheel via the standard build backend instead of
+        # editable install. Editable installs resolve to a specific
+        # src/ tree via a .pth file, so they break across worktree
+        # switches; wheel installs are reproducible and exercise the
+        # same packaging path PyPI users see.
         run: |
-          pip install -e .[test]
+          pip install build
+          python -m build --wheel
+
+      - name: Install package (wheel)
+        # Install the just-built wheel plus the test extra so the test
+        # runner sees the same import surface as an end user. BAM
+        # runtime is installed in a separate step so bam_parser.py can
+        # import cleanly even if pysam is unavailable.
+        run: |
+          pip install dist/*.whl[test]
 
       - name: Install optional BAM runtime
         # pysam is needed for drvizer.bam_parser to import cleanly,
