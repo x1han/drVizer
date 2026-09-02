@@ -110,6 +110,27 @@ jobs:
         run: |
           twine upload --repository testpypi dist/*
 
+      - name: Smoke test (install from TestPyPI)
+        # MUST come AFTER the twine upload step -- this stage pulls
+        # the just-uploaded artifact back via pip and asserts the
+        # public API imports cleanly. Putting it before upload would
+        # 404 on TestPyPI because the version doesn't exist yet.
+        #
+        # The version is stripped from $GITHUB_REF_NAME (which looks
+        # like ``refs/tags/v0.1.1`` for tagged runs). lstrip('v') is
+        # safe for the standard semver tags we publish; removeprefix
+        # would be cleaner but is Python 3.9+ only and pyproject
+        # lists 3.8 in classifiers.
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          PACKAGE_VERSION="${REF_NAME#refs/tags/}"
+          PACKAGE_VERSION="${PACKAGE_VERSION#v}"
+          echo "Smoke-testing drvizer==${PACKAGE_VERSION} from TestPyPI"
+          python -m venv /tmp/smoke-venv
+          /tmp/smoke-venv/bin/pip install --index-url https://test.pypi.org/simple/ "drvizer==${PACKAGE_VERSION}"
+          /tmp/smoke-venv/bin/python -c "import drvizer, importlib.metadata; assert drvizer.__version__ == importlib.metadata.version('drvizer'), (drvizer.__version__, importlib.metadata.version('drvizer')); from drvizer import DrViz, ParallelCoverageError; print('OK', drvizer.__version__)"
+
   publish-pypi:
     name: Publish to PyPI (manual gate)
     needs: test-pypi
