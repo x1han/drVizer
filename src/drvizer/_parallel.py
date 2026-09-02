@@ -1,3 +1,18 @@
+"""Parallel coverage aggregation for drVizer BAM tracks.
+
+Note: ``multiprocessing.Pool.imap_unordered`` is used by
+``aggregate_region_coverages_parallel`` to distribute per-BAM coverage
+computes across worker processes. Callers MUST NOT assume any specific
+ordering of the yielded ``(bam_path, coverage_array)`` tuples -- the
+unordered variant deliberately allows out-of-order completion so slow
+workers do not block the fast ones. The current aggregation step only
+reads each worker's ``coverage_array`` (the ``bam_path`` is preserved
+for downstream attribution but unused here), which makes the reduction
+order-independent; if a future change ever needs ordered attribution it
+must switch to ``imap`` (or sort explicitly) and document the contract
+change.
+"""
+
 from typing import Tuple
 
 import multiprocessing
