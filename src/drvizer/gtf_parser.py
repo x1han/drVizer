@@ -272,6 +272,14 @@ class GTFParser:
         we increment ``self._chunk_parse_degradation`` and fall back to a
         per-row Python branch that catches ``(ValueError, TypeError)`` per
         row so a single bad row never silently aborts a 10k-line chunk.
+
+        The Python fallback also increments the counter for each row it
+        skips due to a bad coordinate, so the degradation signal is
+        emitted regardless of which path processed the chunk. This makes
+        the counter robust to environments where the Cython kernel fails
+        to import (e.g. abi mismatch, missing runtime libs); users still
+        see a degradation warning whenever any row is rejected, instead
+        of silent data corruption.
         """
         if _parse_gtf_chunk_impl is not None:
             try:
@@ -291,6 +299,10 @@ class GTFParser:
                     start_i = int(parts[3])
                     end_i = int(parts[4])
                 except (ValueError, TypeError):
+                    # Count skipped rows as degradation too: this
+                    # surfaces the bad-row event even on environments
+                    # where the Cython kernel didn't run.
+                    self._chunk_parse_degradation += 1
                     continue
                 iterable_rows.append(
                     (parts[0], parts[2], start_i, end_i, parts[6], parts[8])
