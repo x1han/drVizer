@@ -117,8 +117,17 @@ jobs:
           path: dist/
 
       - name: Publish to PyPI
+        # For v0.1.1 first publish, upload the sdist only.
+        # The plain linux_x86_64 wheel that the build job produces is
+        # rejected by PyPI (it requires manylinux tags per PEP 600),
+        # and the project does not yet ship a manylinux wheel. The
+        # sdist has no platform tag and triggers a local Cython
+        # compile on `pip install`, which the project's
+        # [build-system].requires already pins (Cython==3.0.11).
+        # Future releases should add cibuildwheel / manylinux
+        # wheels; tracked in workspace/benchmarks/followup.md.
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          twine upload dist/*
+          twine upload dist/*.tar.gz

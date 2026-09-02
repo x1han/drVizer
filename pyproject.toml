@@ -8,8 +8,7 @@ version = "0.1.1"
 description = "A Python tool for parsing GTF/BED files and visualizing gene transcript structures"
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
-license-files = ["LICENSE"]
+license = {text = "MIT"}
 authors = [
     {name = "x1han", email = "han_xi@gzlab.ac.cn"},
 ]
