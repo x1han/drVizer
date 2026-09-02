@@ -1,0 +1,5 @@
+include src/drvizer/*.pyx
+include LICENSE
+include README.md
+include CHANGELOG.md
+include pyproject.toml
