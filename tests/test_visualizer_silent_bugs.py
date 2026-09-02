@@ -304,7 +304,7 @@ def test_backend_lock_does_not_override_user_choice():
     )
     stdout = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
     backend, has_tkinter = stdout.split()
-    assert backend == "agg", (
+    assert backend.lower() == "agg", (
         f"expected backend Agg with no MPLBACKEND, got {backend}"
     )
     assert has_tkinter == "False", (
