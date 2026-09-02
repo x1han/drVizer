@@ -4,6 +4,45 @@ All notable changes to drVizer are documented here. Versions follow
 [Semantic Versioning](https://semver.org/). The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.2] - 2026-09-02
+
+### Changed
+- **README refreshed to match current code surface.** v0.1.1's PyPI
+  long_description was rendered from a sdist built before the README
+  hygiene pass (commits `48d3c0c` and `32c84ea`) reached `main`. This
+  release re-renders the project description with the post-pass
+  content:
+  - Removed the "Breaking Fix in v0.1.0" callout (incorrectly framed
+    as a release note; was a project-hygiene item, not a user-visible
+    behavior change).
+  - Removed the host-specific DRS environment path from the Testing
+    section; replaced with `python -m pytest -q` and a pointer to
+    `docs/development/environment-setup.md` for the editable-install
+    gotcha.
+  - Fixed the Quick start and one-shot `plot(...)` snippets: the
+    `DrViz.__enter__` context manager hands back `self.build()`
+    (a `ReusableParser`), not the `DrViz` builder, so the previous
+    examples could not bind to a usable object. Both examples now
+    use the Phase 2.2 chain pattern:
+    `with DrViz().load_gtf(...).add_bed_track(...) as parser:`.
+  - Reworded the `build()` cache note to spell out invalidation:
+    calling a mutating method (`load_gtf` / `add_bed_track` /
+    `add_bam_track`) invalidates the cached `ReusableParser` and
+    forces a fresh build on the next `.build()` call.
+  - Added a **Secondary API** section covering
+    `ParallelCoverageError`, `DrViz.get_transcript_data`,
+    `ReusableParser.close()`, and `ReusableParser` as a context
+    manager.
+  - Added three documentation links: `docs/roadmap.md`,
+    `docs/development/environment-setup.md`, and the top-level
+    `CHANGELOG.md` release log.
+  - Annoted the `split_by_transcript` rows in the BED and BAM
+    parameter tables to note the value is consumed from `**kwargs`
+    inside `add_bed_track` / `add_bam_track`.
+
+No code, test, packaging, or behavior changes — this release exists
+solely to refresh the PyPI long_description.
+
 ## [0.1.1] - 2026-09-02
 
 ### Added
