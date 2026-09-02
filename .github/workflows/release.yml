@@ -2,19 +2,19 @@ name: release
 
 # Phase 8 release workflow. Triggered on push tags matching v*.
 #
-# Three sequential jobs:
+# Two sequential jobs:
 #   1. build         -- checkout, setup-python, install build + twine,
 #                       python -m build, twine check dist/*, then
 #                       upload dist/* as a workflow artifact.
-#   2. test-pypi     -- download the build artifact, then twine upload
-#                       --repository testpypi dist/* using the
-#                       TESTPYPI_API_TOKEN secret. This job ALWAYS
-#                       runs as a dry-run / canary so the production
-#                       publish below gets a real PyPI infrastructure
-#                       smoke-test first.
-#   3. publish-pypi  -- download the build artifact, then twine upload
+#   2. publish-pypi  -- download the build artifact, then twine upload
 #                       dist/* using the PYPI_API_TOKEN secret, gated
 #                       on the `pypi` GitHub environment.
+#
+# TestPyPI canary was removed at the maintainer's request for the
+# first v0.1.1 publish -- only a single production token was
+# provisioned, so the canary job would block the release. The
+# workflow can be extended later with a test-pypi job when both
+# tokens (PYPI_API_TOKEN + TESTPYPI_API_TOKEN) are available.
 #
 # **Manual gate via GitHub environment protection rules.** The `pypi`
 # environment MUST be configured with required reviewers in the
@@ -70,70 +70,18 @@ jobs:
           twine check dist/*
 
       - name: Upload build artifact
-        # The dist/ directory flows to both publish jobs via this
-        # artifact (without it, the test-pypi and publish-pypi jobs
-        # would have an empty dist/ at upload time).
+        # The dist/ directory flows to the publish job via this
+        # artifact (without it, the publish-pypi job would have an
+        # empty dist/ at upload time).
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
           if-no-files-found: error
 
-  test-pypi:
-    name: Publish to TestPyPI (canary)
-    needs: build
-    runs-on: ubuntu-latest
-    environment: testpypi
-    steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install twine
-        # twine is installed in the build job, but each job runs on a
-        # fresh runner, so it must be reinstalled here.
-        run: |
-          python -m pip install --upgrade pip
-          pip install twine
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TESTPYPI_API_TOKEN }}
-        run: |
-          twine upload --repository testpypi dist/*
-
-      - name: Smoke test (install from TestPyPI)
-        # MUST come AFTER the twine upload step -- this stage pulls
-        # the just-uploaded artifact back via pip and asserts the
-        # public API imports cleanly. Putting it before upload would
-        # 404 on TestPyPI because the version doesn't exist yet.
-        #
-        # The version is stripped from $GITHUB_REF_NAME (which looks
-        # like ``refs/tags/v0.1.1`` for tagged runs). lstrip('v') is
-        # safe for the standard semver tags we publish; removeprefix
-        # would be cleaner but is Python 3.9+ only and pyproject
-        # lists 3.8 in classifiers.
-        env:
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          PACKAGE_VERSION="${REF_NAME#refs/tags/}"
-          PACKAGE_VERSION="${PACKAGE_VERSION#v}"
-          echo "Smoke-testing drvizer==${PACKAGE_VERSION} from TestPyPI"
-          python -m venv /tmp/smoke-venv
-          /tmp/smoke-venv/bin/pip install --index-url https://test.pypi.org/simple/ "drvizer==${PACKAGE_VERSION}"
-          /tmp/smoke-venv/bin/python -c "import drvizer, importlib.metadata; assert drvizer.__version__ == importlib.metadata.version('drvizer'), (drvizer.__version__, importlib.metadata.version('drvizer')); from drvizer import DrViz, ParallelCoverageError; print('OK', drvizer.__version__)"
-
   publish-pypi:
     name: Publish to PyPI (manual gate)
-    needs: test-pypi
+    needs: build
     runs-on: ubuntu-latest
     # Manual gate via GitHub environment protection rules.
     # Configure the `pypi` environment in the GitHub UI with required
