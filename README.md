@@ -39,20 +39,14 @@ pip install pysam
 
 ## Quick start
 
-The public workflow is centered on `DrViz`:
+The public workflow is centered on `DrViz`. Chain track loads on a single `DrViz()` instance, hand it to a `with` block to bind the resulting `ReusableParser` to `parser`, and call `.plot()` inside:
 
 ```python
 from drvizer import DrViz
 
-parser = (
-    DrViz()
-    .load_gtf("genes.gtf")
-    .add_bed_track("repeats.bed", label="TE")
-    .add_bam_track("reads.bam", label="Coverage")
-    .build()
-)
-
-fig = parser.plot("TP53", show=False)
+with DrViz().load_gtf("genes.gtf").add_bed_track("repeats.bed", label="TE").add_bam_track("reads.bam", label="Coverage") as parser:
+    fig = parser.plot("TP53", show=False)
+# cache cleared, pool shut down with wait=True on exit
 ```
 
 `build()` freezes the configured GTF and tracks into a reusable parser, so plotting many genes does not repeat setup work.
@@ -75,8 +69,10 @@ with DrViz().load_gtf("genes.gtf").add_bed_track("repeats.bed", label="TE") as p
 Cache and pool configuration:
 
 - `DrViz(cache_maxsize=N)` — LRU cache capacity (default 128).
-  Caches are per-parser-instance; each new `build()` constructs a
-  fresh cache.
+  Caches are per-parser-instance. Calling a mutating method
+  (`load_gtf` / `add_bed_track` / `add_bam_track`) invalidates the
+  cached `ReusableParser` and forces a fresh build on the next
+  `.build()` call.
 - `DrViz(adaptive_threshold=N)` — minimum total BED record count
   that opens a `ProcessPool` during build (default 20_000). Below
   the threshold, build is purely sequential.
@@ -117,7 +113,7 @@ Add BED-backed annotation tracks.
 | `y_axis_group` | `str` or `None` | `None` | Shared automatic y-axis scaling group for numeric BED `score` tracks. Invalid for `distribution` tracks. |
 | `transcript_coord` | `bool` | `False` | Treat BED `chrom` field as transcript ID and project transcript coordinates back to genomic coordinates through the loaded GTF. |
 | `layer_order` | `None`, `"ascending"`, or `"descending"` | `"ascending"` | Controls drawing order for layered BED elements. |
-| `split_by_transcript` | `None`, `"nc"`, or `"cn"` | `None` | Split transcript-coordinate BED data into transcript-specific subtracks. Requires `transcript_coord=True`. |
+| `split_by_transcript` | `None`, `"nc"`, or `"cn"` | `None` | Split transcript-coordinate BED data into transcript-specific subtracks. Requires `transcript_coord=True`. (Consumed from `**kwargs` inside `add_bed_track`.) |
 
 Score tracks can share automatic y-axis scaling:
 
@@ -145,7 +141,7 @@ Add BAM-backed coverage tracks.
 | `y_axis_group` | `str` or `None` | `None` | Shared automatic y-axis scaling group for numeric coverage tracks. |
 | `transcript_coord` | `bool` | `False` | Treat BAM reference names as transcript IDs and project coverage back to genomic coordinates through the loaded GTF. |
 | `layer_order` | `None`, `"ascending"`, or `"descending"` | `"ascending"` | Controls drawing order for per-file coverage series where individual series are rendered. |
-| `split_by_transcript` | `None`, `"nc"`, or `"cn"` | `None` | Split transcript-coordinate BAM coverage into transcript-specific subtracks. Requires `transcript_coord=True`. |
+| `split_by_transcript` | `None`, `"nc"`, or `"cn"` | `None` | Split transcript-coordinate BAM coverage into transcript-specific subtracks. Requires `transcript_coord=True`. (Consumed from `**kwargs` inside `add_bam_track`.) |
 
 Multiple BAM files can be combined:
 
@@ -182,12 +178,9 @@ fig2 = parser.plot("MYC", show=False)
 Use one-shot `plot(...)` for quick figures:
 
 ```python
-fig = (
-    DrViz()
-    .load_gtf("genes.gtf")
-    .add_bed_track("repeats.bed", label="TE")
-    .plot("TP53", show=False)
-)
+with DrViz().load_gtf("genes.gtf").add_bed_track("repeats.bed", label="TE") as parser:
+    fig = parser.plot("TP53", show=False)
+# cache cleared, pool shut down with wait=True on exit
 ```
 
 `ReusableParser.plot(...)` accepts these parameters:
@@ -261,6 +254,15 @@ fig.set_size_inches((10, 6))
 fig.savefig("tp53.png", dpi=300, bbox_inches="tight")
 ```
 
+## Secondary API
+
+Less-prominent public surface used by advanced callers and exception handling:
+
+- **`ParallelCoverageError`** (in `__all__`): raised when one or more BAM-backed coverage workers fail. The exception message includes the failing `bam_path` so corrupt BAMs / missing `.bai` indices surface diagnostics directly.
+- **`DrViz.get_transcript_data(gene, transcript_to_show=None)`**: returns the normalized plotting payload (transcript dicts, GTF info, prepared tracks) for a given gene without rendering a figure. Useful when callers want to reuse the parsed state with a custom backend.
+- **`ReusableParser.close()`**: idempotent teardown. Clears the prepared-data cache, shuts down any lazy `ProcessPool` with `wait=True`, and is safe to call multiple times. `DrViz.__exit__` and `ReusableParser.__exit__` both delegate here.
+- **`ReusableParser` as a context manager**: enter returns `self`, exit calls `close()`. Use `with parser:` for guaranteed cleanup without manual `.close()`.
+
 ## Documentation
 
 Detailed docs live in `docs/`:
@@ -271,7 +273,10 @@ Detailed docs live in `docs/`:
 - [API reference](docs/api-reference.md)
 - [Testing guide](docs/testing-guide.md)
 - [Code standards](docs/code-standards.md)
+- [Roadmap (v0.2.0 priorities)](docs/roadmap.md)
+- [Environment setup (editable install gotcha)](docs/development/environment-setup.md)
 - [Changelog](docs/changelog.md)
+- [Release log](CHANGELOG.md) — top-level SemVer entry per release
 
 ## Testing
 
