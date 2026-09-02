@@ -4,15 +4,6 @@
 
 It is designed for direct RNA sequencing and transcriptomics workflows that need reusable, scriptable, publication-ready matplotlib figures.
 
-## Breaking Fix in v0.1.0
-
-- **`ParallelCoverageError` surfaces the BAM path on worker failure** (P1-8, merged in Phase 3): worker exceptions from `compute_region_coverage` are chained via `raise ... from exc` and include the failing `bam_path` in the message so corrupt BAM / missing `.bai` / `KeyError` / `BrokenPipeError` failures stay diagnosable.
-- **GTF chunk-degradation warning now gated on `N > 0`** (P1-3): the end-of-parse `RuntimeWarning` only fires when `_chunk_parse_degradation > 0`. Clean parses emit no warning.
-- **`pyproject.toml` PEP 621 `[project]` section** (PKG-002): `name=drvizer`, `version=0.1.0`, README, MIT, requires-python `>=3.8`, classifiers (Python 3.8 - 3.12 + Development Status 4 Beta), `dependencies` from `requirements.txt`, optional `[bam]` and `[test]` extras.
-- **`setup.py` skeleton** (P1-16): `setup.py` is now a thin C-extension compile-only wrapper; all metadata truth lives in `pyproject.toml [project]`. `extra_compile_args=["-std=c99"]` is preserved on every Cython `Extension`.
-- **Version bump `1.0.0` -> `0.1.0`** (PKG-002): first public release tag.
-- **Hygiene**: dead `BEDParser` import removed from `src/drvizer/api.py`; dead `defaultdict` import removed from `src/drvizer/utils.py`; stale `docs/superpowers/` rule removed from `.gitignore`.
-
 ## Features
 
 - Build transcript structure figures from one or more GTF files.
@@ -284,10 +275,8 @@ Detailed docs live in `docs/`:
 
 ## Testing
 
-Use the project DRS environment for validation:
-
 ```bash
-/datf/hanxi/software/miniconda3/envs/DRS/bin/python -m pytest -q
+python -m pytest -q
 ```
 
 ## Public entry point
