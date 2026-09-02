@@ -9,6 +9,7 @@ description = "A Python tool for parsing GTF/BED files and visualizing gene tran
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "x1han", email = "han_xi@gzlab.ac.cn"},
 ]
@@ -48,6 +49,3 @@ test = ["pytest"]
 "Bug Reports" = "https://github.com/x1han/drVizer/issues"
 "Source" = "https://github.com/x1han/drVizer"
 "Documentation" = "https://github.com/x1han/drVizer#readme"
-
-[project.license-files]
-files = ["LICENSE"]
