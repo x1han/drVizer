@@ -61,8 +61,17 @@ jobs:
         # runner sees the same import surface as an end user. BAM
         # runtime is installed in a separate step so bam_parser.py can
         # import cleanly even if pysam is unavailable.
+        #
+        # The wheel filename is captured via ls+head (rather than
+        # `pip install dist/*.whl[test]`) because pip does not glob-
+        # expand paths followed by extras brackets -- it treats the
+        # whole string as a literal requirement with extras, which
+        # fails with "Invalid wheel filename". Expanding the glob in
+        # the shell first and then concatenating [test] works around
+        # this without changing the install semantics.
         run: |
-          pip install dist/*.whl[test]
+          WHL=$(ls dist/*.whl | head -n 1)
+          pip install "${WHL}[test]"
 
       - name: Install optional BAM runtime
         # pysam is needed for drvizer.bam_parser to import cleanly,
